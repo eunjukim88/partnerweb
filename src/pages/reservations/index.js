@@ -2,31 +2,33 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import ReservationList from '../../components/reservations/ReservationList';
 import { FaList, FaCalendarAlt } from 'react-icons/fa';
+import { tempReservations } from '../../data/tempData';
 
 const ReservationsPage = () => {
   const [viewMode, setViewMode] = useState('list');
-  const [reservations, setReservations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [reservations, setReservations] = useState(tempReservations);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchReservations = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/reservations');
-        if (!response.ok) {
-          throw new Error('Failed to fetch reservations');
-        }
-        const data = await response.json();
-        setReservations(data);
-      } catch (error) {
-        console.error('Error fetching reservations:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // API 호출 부분을 주석 처리하고 tempReservations를 사용합니다.
+  // useEffect(() => {
+  //   const fetchReservations = async () => {
+  //     setLoading(true);
+  //     try {
+  //       const response = await fetch('/api/reservations');
+  //       if (!response.ok) {
+  //         throw new Error('Failed to fetch reservations');
+  //       }
+  //       const data = await response.json();
+  //       setReservations(data);
+  //     } catch (error) {
+  //       console.error('Error fetching reservations:', error);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
 
-    fetchReservations();
-  }, []);
+  //   fetchReservations();
+  // }, []);
 
   return (
     <PageContent>
