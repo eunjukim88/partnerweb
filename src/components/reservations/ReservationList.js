@@ -4,7 +4,6 @@ import { FaSearch, FaEdit, FaTrash, FaRedo } from 'react-icons/fa';
 import theme from '../../styles/theme';
 import ReservationModal from './ReservationModal';
 import { Button, Select, Input } from '../common/FormComponents';
-import { addReservation, updateReservation, deleteReservation, getReservations } from '../../data/tempData';
 
 const ReservationList = ({ reservations, setReservations, bookingSources, stayTypes }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,8 +20,18 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
   const [totalFilteredReservations, setTotalFilteredReservations] = useState([]);
 
   useEffect(() => {
-    setReservations(getReservations());
+    fetchReservations();
   }, []);
+
+  const fetchReservations = async () => {
+    try {
+      const response = await fetch('/api/reservations');
+      const data = await response.json();
+      setReservations(data.reservations);
+    } catch (error) {
+      console.error('예약 데이터를 불러오는 데 실패했습니다:', error);
+    }
+  };
 
   useEffect(() => {
     handleSearch();
@@ -38,22 +47,36 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
     setSelectedReservation(null);
   };
 
-  const handleSaveReservation = (reservationData) => {
-    if (selectedReservation) {
-      if (updateReservation(reservationData)) {
-        setReservations(getReservations());
-      }
-    } else {
-      const newReservation = addReservation(reservationData);
-      setReservations(getReservations());
+  const handleSaveReservation = async (reservationData) => {
+    try {
+      const method = selectedReservation ? 'PUT' : 'POST';
+      const response = await fetch('/api/reservations', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reservationData),
+      });
+      if (!response.ok) throw new Error('API 요청 실패');
+      await fetchReservations();
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('예약 저장 중 오류 발생:', error);
+      alert('예약 저장에 실패했습니다. 다시 시도해주세요.');
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('예약을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-      if (deleteReservation(id)) {
-        setReservations(getReservations());
+      try {
+        const response = await fetch('/api/reservations', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [id] }),
+        });
+        if (!response.ok) throw new Error('API 요청 실패');
+        await fetchReservations();
+      } catch (error) {
+        console.error('예약 삭제 중 오류 발생:', error);
+        alert('예약 삭제에 실패했습니다. 다시 시도해주세요.');
       }
     }
   };

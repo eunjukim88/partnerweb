@@ -34,7 +34,7 @@ const MenuIcon = styled.div`
 
 const StyledHeader = styled.header`
   background-color: ${({ theme }) => theme.colors.navbar};
-  padding: 5px 10px;
+  padding: 5px 30px;
   display: flex;
   justify-content: space-between;
   align-items: center;
