@@ -72,21 +72,21 @@ const TimelineView = ({ timelineStartDate, onTimelineChange, roomNumbers, stayTy
       </TimelineHeader>
       <TimelineTableWrapper>
         <TimelineTable>
-          <thead>
+        <thead>
             <tr>
-              <HeaderCell>객실 호수</HeaderCell>
-              <HeaderCell>숙박 유형</HeaderCell>
-              {[...Array(endDate.getDate() - startDate.getDate() + 1)].map((_, index) => {
+                <HeaderCell>객실 호수</HeaderCell>
+                <HeaderCell style={{display: 'none'}}>숙박 유형</HeaderCell>
+                {[...Array(endDate.getDate() - startDate.getDate() + 1)].map((_, index) => {
                 const currentDate = new Date(startDate);
                 currentDate.setDate(currentDate.getDate() + index);
                 return (
-                  <HeaderCell key={index}>
+                    <HeaderCell key={index}>
                     {currentDate.getDate()}일
-                  </HeaderCell>
+                    </HeaderCell>
                 );
-              })}
+                })}
             </tr>
-          </thead>
+            </thead>
           <tbody>
             {roomNumbers.map(roomNumber => (
               actualStayTypes.map((stayType, typeIndex) => (
@@ -105,13 +105,13 @@ const TimelineView = ({ timelineStartDate, onTimelineChange, roomNumbers, stayTy
                     return (
                       <TimelineCell key={index}>
                         {reservationsForDay.map(res => (
-                          <ReservationBlock
-                            key={res.id}
-                            stayType={res.stayType}
-                            isCheckIn={new Date(res.checkIn).toDateString() === currentDate.toDateString()}
-                            isCheckOut={new Date(res.checkOut).toDateString() === currentDate.toDateString()}
-                          >
-                            {res.guestName}
+                            <ReservationBlock
+                                key={res.id}
+                                stayType={res.stayType}
+                                isCheckIn={new Date(res.checkIn).toDateString() === currentDate.toDateString()}
+                                isCheckOut={new Date(res.checkOut).toDateString() === currentDate.toDateString()}
+>
+                            {res.isCheckIn && 'IN '}{res.stayType}{res.isCheckOut && ' OUT'}
                           </ReservationBlock>
                         ))}
                       </TimelineCell>
@@ -157,15 +157,13 @@ const TimelineTableWrapper = styled.div`
 `;
 
 const TimelineTable = styled.table`
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
   width: 100%;
 `;
 
 const HeaderCell = styled.th`
   padding: 10px;
   background-color: #f2f2f2;
-  border: 1px solid #ddd;
   text-align: center;
   min-width: 40px;
 `;
@@ -175,18 +173,15 @@ const RoomCell = styled.td`
   font-weight: bold;
   text-align: center;
   vertical-align: middle;
-  border: 1px solid #ddd;
 `;
 
 const StayTypeCell = styled.td`
   padding: 10px;
   text-align: center;
-  border: 1px solid #ddd;
 `;
 
 const TimelineCell = styled.td`
   padding: 5px;
-  border: 1px solid #ddd;
   height: 30px;
   position: relative;
 `;
