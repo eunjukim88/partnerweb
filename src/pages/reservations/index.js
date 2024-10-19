@@ -1,86 +1,63 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import ReservationList from '../../components/reservations/ReservationList';
-import { FaList, FaCalendarAlt } from 'react-icons/fa';
-import { tempReservations } from '../../data/tempData';
+import TimelineView from '../../components/reservations/TimelineView';
+import { TabMenu, TabButton } from '../../components/common/TabComponents';
+import { getReservations, bookingSources, stayTypes, roomNumbers } from '../../data/tempData';
 
 const ReservationsPage = () => {
-  const [viewMode, setViewMode] = useState('list');
-  const [reservations, setReservations] = useState(tempReservations);
-  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('list');
+  const [reservations, setReservations] = useState([]);
+  const [rooms, setRooms] = useState(roomNumbers);
+  const [timelineStartDate, setTimelineStartDate] = useState(new Date());
 
-  // API 호출 부분을 주석 처리하고 tempReservations를 사용합니다.
-  // useEffect(() => {
-  //   const fetchReservations = async () => {
-  //     setLoading(true);
-  //     try {
-  //       const response = await fetch('/api/reservations');
-  //       if (!response.ok) {
-  //         throw new Error('Failed to fetch reservations');
-  //       }
-  //       const data = await response.json();
-  //       setReservations(data);
-  //     } catch (error) {
-  //       console.error('Error fetching reservations:', error);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
+  useEffect(() => {
+    setReservations(getReservations());
+  }, []);
 
-  //   fetchReservations();
-  // }, []);
+  const handleTimelineChange = (direction) => {
+    const newDate = new Date(timelineStartDate);
+    if (direction === 'next') {
+      newDate.setMonth(newDate.getMonth() + 1);
+    } else {
+      newDate.setMonth(newDate.getMonth() - 1);
+    }
+    setTimelineStartDate(newDate);
+  };
 
   return (
     <PageContent>
-      <ControlContainer>
-        <ViewModeButtons>
-          {['list', 'timeline'].map(mode => (
-            <ViewModeButton key={mode} active={viewMode === mode} onClick={() => setViewMode(mode)}>
-              {mode === 'list' ? <FaList /> : <FaCalendarAlt />}
-            </ViewModeButton>
-          ))}
-        </ViewModeButtons>
-      </ControlContainer>
-      {loading ? (
-        <LoadingMessage>예약 정보를 불러오는 중...</LoadingMessage>
-      ) : viewMode === 'list' ? (
-        <ReservationList reservations={reservations} />
+      <PageTitle>예약 관리</PageTitle>
+      <TabMenu>
+        <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')}>리스트 뷰</TabButton>
+        <TabButton active={activeTab === 'timeline'} onClick={() => setActiveTab('timeline')}>타임라인 뷰</TabButton>
+      </TabMenu>
+      {activeTab === 'list' ? (
+        <ReservationList 
+          reservations={reservations} 
+          setReservations={setReservations} 
+          bookingSources={bookingSources}
+          stayTypes={stayTypes}
+        />
       ) : (
-        <ReservationTimeline reservations={reservations} />
+        <TimelineView 
+          reservations={reservations} 
+          roomNumbers={rooms}
+          timelineStartDate={timelineStartDate}
+          stayTypes={stayTypes}
+        />
       )}
     </PageContent>
   );
 };
 
 const PageContent = styled.div`
-  padding: 15px;
+  padding: 20px;
 `;
 
-const ControlContainer = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-bottom: 10px;
-`;
-
-const ViewModeButtons = styled.div`
-  display: flex;
-  gap: 10px;
-`;
-
-const ViewModeButton = styled.button`
-  background-color: ${props => props.active ? '#535353' : '#f0f0f0'};
-  color: ${props => props.active ? '#ffffff' : '#535353'};
-  border: none;
-  padding: 10px;
-  border-radius: 5px;
-  cursor: pointer;
-`;
-
-const LoadingMessage = styled.div`
-  text-align: center;
-  font-size: 18px;
-  margin-top: 20px;
+const PageTitle = styled.h1`
+  font-size: 24px;
+  margin-bottom: 20px;
 `;
 
 export default ReservationsPage;

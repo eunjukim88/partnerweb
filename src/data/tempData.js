@@ -4,7 +4,7 @@ export const roomNumbers = [
     '209호', '210호', '301호', '302호', '303호', '304호', '305호', '306호', '307호', '308호'
   ];
   
-  export const tempReservations = [
+export const tempReservations = [
     {
       id: '1',
       reservationNumber: 'R001',
@@ -226,3 +226,35 @@ export const roomNumbers = [
       stayType: '장기'
     }
   ];
+
+  export const bookingSources = ['야놀자', '여기어때', '호텔스닷컴', '아고다', '에어비앤비', '네이버'];
+
+  export const stayTypes = ['숙박', '장기', '대실'];
+  
+  export const addReservation = (newReservation) => {
+    const newId = String(Date.now());
+    const reservationWithId = { ...newReservation, id: newId };
+    reservationsData.push(reservationWithId);
+    return reservationWithId;
+  };
+  
+  export const updateReservation = (updatedReservation) => {
+    const index = reservationsData.findIndex(r => r.id === updatedReservation.id);
+    if (index !== -1) {
+      reservationsData[index] = updatedReservation;
+      return true;
+    }
+    return false;
+  };
+  
+  export const deleteReservation = (id) => {
+    const index = reservationsData.findIndex(r => r.id === id);
+    if (index !== -1) {
+      reservationsData.splice(index, 1);
+      return true;
+    }
+    return false;
+  };
+  
+  export const getReservations = () => [...tempReservations];
+  

@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import theme from '../../styles/theme';
-
-const roomNumbers = [
-  '101호', '102호', '103호', '104호', '105호', '106호', '107호', '108호', '109호',
-  '110호', '201호', '202호', '203호', '204호', '205호', '206호', '207호', '208호', 
-  '209호', '210호', '301호', '302호', '303호', '304호', '305호', '306호', '307호', '308호'
-];
-
-const bookingSources = ['야놀자', '여기어때', '호텔스닷컴', '아고다', '에어비앤베', '네이버'];
-
-const stayTypes = ['숙박', '장기', '대실'];
+import { Button, Select, Input } from '../common/FormComponents';
+import { roomNumbers, bookingSources, stayTypes } from '../../data/tempData';
 
 const ReservationModal = ({ reservation, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -208,18 +200,6 @@ const FormGroup = styled.div`
 const Label = styled.label`
   margin-bottom: 5px;
   font-weight: bold;
-`;
-
-const Input = styled.input`
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-`;
-
-const Select = styled.select`
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
 `;
 
 const SubmitButton = styled.button`
