@@ -1,230 +1,342 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { FaTrash, FaPlus } from 'react-icons/fa';
 
 const MessageSend = () => {
-    const [balance, setBalance] = useState(500000);
-    const [mmsLimit, setMmsLimit] = useState(50);
-    const [lmsLimit, setLmsLimit] = useState(20);
     const [senderNumber, setSenderNumber] = useState('');
     const [receiverNumbers, setReceiverNumbers] = useState([]);
-    const [blockedNumbers, setBlockedNumbers] = useState([]);
-    const [isAd, setIsAd] = useState(false);
+    const [blockNumbers, setBlockNumbers] = useState('');
     const [messageContent, setMessageContent] = useState('');
+    const [isAdvertisement, setIsAdvertisement] = useState(false);
     const [isSendingNow, setIsSendingNow] = useState(true);
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTime, setScheduledTime] = useState('');
 
     const handleAddReceiver = () => {
-        // 구현 필요: 연락처 추가 로직
-    };
-
-    const handleAddFromReservations = () => {
-        // 구현 필요: 예약 리스트에서 연락처 추가 로직
-    };
-
-    const handleRemoveAllReceivers = () => {
-        setReceiverNumbers([]);
+        // 수신번호 추가 로직
     };
 
     const handleRemoveReceiver = (index) => {
-        setReceiverNumbers(receiverNumbers.filter((_, i) => i !== index));
+        // 수신번호 삭제 로직
     };
 
-    const handleSelectTemplate = () => {
-        // 구현 필요: 템플릿 선택 로직
+    const handleRemoveAllReceivers = () => {
+        // 모든 수신번호 삭제 로직
     };
 
     const handleSendMessage = () => {
-        // 구현 필요: 메시지 전송 로직
+        // 메시지 전송 로직
+    };
+
+    const handleLoadTemplate = () => {
+        // 템플릿 불러오기 로직
+    };
+
+    const handleAddFromReservations = () => {
+        // 예약 리스트에서 추가 로직
     };
 
     return (
-        <StyledContent>
-            <PageTitle>문자 발송</PageTitle>
-            <FlexContainer>
-                <LeftSection>
-                    <BalanceInfo>
-                        <p>충전금: {balance.toLocaleString()}원</p>
-                        <p>발송한도: MMS({mmsLimit}건), LMS({lmsLimit}건)</p>
-                    </BalanceInfo>
-                    <InputGroup>
-                        <label>발신번호</label>
-                        <input 
-                            type="text" 
-                            value={senderNumber} 
-                            onChange={(e) => setSenderNumber(e.target.value)}
-                        />
-                        <Button onClick={handleAddReceiver}>연락처 추가</Button>
-                    </InputGroup>
-                    <InputGroup>
-                        <label>수신번호</label>
-                        <input type="text" />
-                        <Button onClick={handleAddFromReservations}>예약리스트에서 추가</Button>
-                    </InputGroup>
-                    <InputGroup>
-                        <label>수신거부</label>
-                        <input type="text" />
-                    </InputGroup>
-                    <CheckboxGroup>
-                        <input 
-                            type="checkbox" 
-                            checked={isAd} 
-                            onChange={(e) => setIsAd(e.target.checked)}
-                        />
-                        <label>(광고)문구 및 수신거부 표시</label>
-                    </CheckboxGroup>
-                    <ReceiverList>
-                        <div>수신번호 ({receiverNumbers.length})</div>
-                        <Button onClick={handleRemoveAllReceivers}>연락처 전체 삭제</Button>
-                    </ReceiverList>
-                    <ReceiverListContent>
-                        {receiverNumbers.map((number, index) => (
-                            <ReceiverItem key={index}>
-                                {number}
-                                <FaTrash onClick={() => handleRemoveReceiver(index)} />
-                            </ReceiverItem>
-                        ))}
-                    </ReceiverListContent>
-                </LeftSection>
-                <RightSection>
-                    <PhoneSimulator>
-                        <textarea
+        <Container>
+            <LeftSection>
+                <Balance>
+                    <h3>충전금: 5,000,000원</h3>
+                    <h3>발송한도: MMS(50건), LMS(20건)</h3>
+                </Balance>
+                <InputGroup>
+                    <label style={{ width: '80px' }}>발신번호</label>
+                    <Input
+                        type="text"
+                        value={senderNumber}
+                        onChange={(e) => setSenderNumber(e.target.value)}
+                    />
+                    <Button style={{ width: '30%' }} onClick={handleAddReceiver}>연락처 추가</Button>
+                </InputGroup>
+                <InputGroup>
+                    <label style={{ width: '80px' }}>수신번호</label>
+                    <Input type="text" placeholder="수신번호 입력" />
+                    <Button style={{ width: '30%' }} onClick={handleAddFromReservations}>예약자 검색</Button>
+                </InputGroup>
+                <InputGroup>
+                    <label
+                        style={{ width: '90px' }}
+                    >수신거부</label>
+                    <Input
+                        type="text"
+                        style={{ width: '100%' }}                        
+                        value={blockNumbers}
+                        onChange={(e) => setBlockNumbers(e.target.value)}
+                        placeholder="수신거부 번호 입력"
+                    />
+                </InputGroup>
+                <CheckboxGroup>
+                    <input
+                        type="checkbox"
+                        style={{ width: '20px', height: '20px' }}
+                        checked={isAdvertisement}
+                        onChange={(e) => setIsAdvertisement(e.target.checked)}
+                    />
+                    <label>(광고)문구 및 수신거부 표시</label>
+                </CheckboxGroup>
+                <ReceiverList>
+                    <div>수신번호 (총 {receiverNumbers.length}개)</div>
+                    <Button style={{ width: '150px' }} onClick={handleRemoveAllReceivers}>연락처 전체 삭제</Button>
+                </ReceiverList>
+                <ReceiverListContent>
+                    {receiverNumbers.map((number, index) => (
+                        <ReceiverItem key={index}>
+                            <span>{number}</span>
+                            <FaTrash onClick={() => handleRemoveReceiver(index)} />
+                        </ReceiverItem>
+                    ))}
+                </ReceiverListContent>
+            </LeftSection>
+            <RightSection>
+                <PhoneContainer>
+                    <PhoneScreen>
+                        <AppHeader>새 메시지</AppHeader>
+                        <MessageArea
                             value={messageContent}
                             onChange={(e) => setMessageContent(e.target.value)}
                             placeholder="메시지를 입력하세요..."
                         />
-                    </PhoneSimulator>
-                    <Button onClick={handleSelectTemplate}>템플릿 선택</Button>
-                    <RadioGroup>
-                        <label>
-                            <input 
-                                type="radio" 
-                                checked={isSendingNow} 
-                                onChange={() => setIsSendingNow(true)}
-                            />
-                            즉시 발송
-                        </label>
-                        <label>
-                            <input 
-                                type="radio" 
-                                checked={!isSendingNow} 
-                                onChange={() => setIsSendingNow(false)}
-                            />
-                            예약 발송
-                        </label>
-                    </RadioGroup>
-                    {!isSendingNow && (
-                        <ScheduleGroup>
-                            <input 
-                                type="date" 
-                                value={scheduledDate}
-                                onChange={(e) => setScheduledDate(e.target.value)}
-                            />
-                            <input 
-                                type="time" 
-                                value={scheduledTime}
-                                onChange={(e) => setScheduledTime(e.target.value)}
-                            />
-                        </ScheduleGroup>
-                    )}
-                    <SendButton onClick={handleSendMessage}>문자 전송</SendButton>
-                </RightSection>
-            </FlexContainer>
-        </StyledContent>
+                        <Button onClick={handleLoadTemplate}>템플릿 선택</Button>
+                        <RadioGroup>
+                            <RadioButton 
+                                active={isSendingNow} 
+                                onClick={() => setIsSendingNow(true)}
+                            >
+                                즉시 발송
+                            </RadioButton>
+                            <RadioButton 
+                                active={!isSendingNow} 
+                                onClick={() => setIsSendingNow(false)}
+                            >
+                                예약 발송
+                            </RadioButton>
+                        </RadioGroup>
+                        {!isSendingNow && (
+                            <ScheduleGroup>
+                                <Input
+                                    type="date"
+                                    value={scheduledDate}
+                                    onChange={(e) => setScheduledDate(e.target.value)}
+                                />
+                                <Input
+                                    type="time"
+                                    value={scheduledTime}
+                                    onChange={(e) => setScheduledTime(e.target.value)}
+                                />
+                            </ScheduleGroup>
+                        )}
+                        <SendButton onClick={handleSendMessage}>
+                            문자 전송
+                        </SendButton>
+                    </PhoneScreen>
+                </PhoneContainer>
+            </RightSection>
+        </Container>
     );
 };
 
-const StyledContent = styled.div`
-    padding: 20px;
-`;
-
-const PageTitle = styled.h1`
-    font-size: 24px;
-    margin-bottom: 20px;
-`;
-
-const FlexContainer = styled.div`
+const Container = styled.div`
     display: flex;
+    justify-content: center;
+    align-items: flex-start;
     gap: 20px;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    height: 100vh;
 `;
 
 const LeftSection = styled.div`
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background-color: #f5f5f7;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    height: 667px;
+    max-width: 500px;
+    min-width: 450px;
+    border-radius: 30px;
+    overflow: hidden;
+    padding: 30px;
 `;
 
 const RightSection = styled.div`
     flex: 1;
+    display: flex;
+    justify-content: center;
+    height: 667px;
 `;
 
-const BalanceInfo = styled.div`
-    margin-bottom: 20px;
+const Balance = styled.div`
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    gap: 10px;
 `;
 
 const InputGroup = styled.div`
-    margin-bottom: 15px;
     display: flex;
     align-items: center;
     gap: 10px;
 `;
 
-const Button = styled.button`
-    padding: 5px 10px;
-    background-color: #007bff;
-    color: white;
+const Input = styled.input`
+    padding: 12px 15px;
     border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+
+    &:focus {
+        outline: none;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+`;
+
+const Button = styled.button`
+    padding: 10px 5px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    background-color: #007AFF;
+    color: white;
     cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+        background-color: #0056b3;
+    }
 `;
 
 const CheckboxGroup = styled.div`
-    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 `;
 
 const ReceiverList = styled.div`
     display: flex;
     justify-content: space-between;
-    margin-bottom: 10px;
+    align-items: center;
 `;
 
 const ReceiverListContent = styled.div`
-    max-height: 200px;
+    height: 400px;
     overflow-y: auto;
-    border: 1px solid #ddd;
+    background-color: #ffffff;
+    border-radius: 10px;
     padding: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 `;
 
 const ReceiverItem = styled.div`
     display: flex;
     justify-content: space-between;
-    margin-bottom: 5px;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #f0f0f0;
+
+    &:last-child {
+        border-bottom: none;
+    }
 `;
 
-const PhoneSimulator = styled.div`
-    border: 1px solid #ddd;
-    padding: 10px;
-    margin-bottom: 15px;
-    height: 300px;
-    
-    textarea {
-        width: 100%;
-        height: 100%;
-        border: none;
-        resize: none;
+const PhoneContainer = styled.div`
+    width: 375px;
+    height: 725px;
+    border-radius: 30px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: #f5f5f7;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+`;
+
+const PhoneScreen = styled.div`
+    flex: 1;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+`;
+
+const AppHeader = styled.div`
+    font-size: 24px;
+    font-weight: 600;
+    color: #1c1c1e;
+    margin-bottom: 10px;
+`;
+
+const MessageArea = styled.textarea`
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 16px;
+    resize: none;
+    background-color: #ffffff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+
+    &:focus {
+        outline: none;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
 `;
 
 const RadioGroup = styled.div`
-    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+`;
+
+const RadioButton = styled.button`
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: ${props => props.active ? '#007AFF' : '#ffffff'};
+    color: ${props => props.active ? '#ffffff' : '#1c1c1e'};
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+
+    &:hover {
+        background-color: ${props => props.active ? '#0056b3' : '#f0f0f0'};
+    }
 `;
 
 const ScheduleGroup = styled.div`
-    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
 `;
 
-const SendButton = styled(Button)`
-    width: 100%;
-    padding: 10px;
+const SendButton = styled.button`
+    background-color: #007AFF;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    padding: 15px;
     font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+
+    &:hover {
+        background-color: #0056b3;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    }
 `;
 
 export default MessageSend;
