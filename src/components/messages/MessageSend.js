@@ -176,7 +176,7 @@ const Container = styled.div`
     padding: 20px;
     max-width: 1200px;
     margin: 0 auto;
-    height: 100vh;
+    height: 650px;
 `;
 
 const LeftSection = styled.div`
@@ -198,7 +198,7 @@ const RightSection = styled.div`
     flex: 1;
     display: flex;
     justify-content: center;
-    height: 667px;
+    flow: hidden;
 `;
 
 const Balance = styled.div`
@@ -322,7 +322,7 @@ const RadioButton = styled.button`
 const ScheduleGroup = styled.div`
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
 `;
 
 const StyledInput = styled.input`
