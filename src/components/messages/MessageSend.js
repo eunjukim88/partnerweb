@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { FaTrash, FaPlus } from 'react-icons/fa';
+import ReservationModal from './ReservationModal';
+import PhoneContainer from './PhoneContainer';
 
 const MessageSend = () => {
     const [senderNumber, setSenderNumber] = useState('');
+    const [receiverNumber, setReceiverNumber] = useState('');
     const [receiverNumbers, setReceiverNumbers] = useState([]);
     const [blockNumbers, setBlockNumbers] = useState('');
     const [messageContent, setMessageContent] = useState('');
@@ -11,17 +14,41 @@ const MessageSend = () => {
     const [isSendingNow, setIsSendingNow] = useState(true);
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTime, setScheduledTime] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handleAddReceiver = () => {
-        // 수신번호 추가 로직
+        if (receiverNumber && !receiverNumbers.includes(receiverNumber)) {
+            setReceiverNumbers([...receiverNumbers, receiverNumber]);
+            setReceiverNumber('');
+        }
     };
 
     const handleRemoveReceiver = (index) => {
-        // 수신번호 삭제 로직
+        const newReceiverNumbers = receiverNumbers.filter((_, i) => i !== index);
+        setReceiverNumbers(newReceiverNumbers);
     };
 
     const handleRemoveAllReceivers = () => {
-        // 모든 수신번호 삭제 로직
+        setReceiverNumbers([]);
+    };
+
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            handleAddReceiver();
+        }
+    };
+
+    const handleAddFromReservations = () => {
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+    };
+
+    const handleSelectReservation = (phones) => {
+        const newReceiverNumbers = [...new Set([...receiverNumbers, ...phones])];
+        setReceiverNumbers(newReceiverNumbers);
     };
 
     const handleSendMessage = () => {
@@ -30,10 +57,6 @@ const MessageSend = () => {
 
     const handleLoadTemplate = () => {
         // 템플릿 불러오기 로직
-    };
-
-    const handleAddFromReservations = () => {
-        // 예약 리스트에서 추가 로직
     };
 
     return (
@@ -50,11 +73,17 @@ const MessageSend = () => {
                         value={senderNumber}
                         onChange={(e) => setSenderNumber(e.target.value)}
                     />
-                    <Button style={{ width: '30%' }} onClick={handleAddReceiver}>연락처 추가</Button>
+                    <Button style={{ width: '30%' }} onClick={handleAddReceiver}>연락처 변경</Button>
                 </InputGroup>
                 <InputGroup>
                     <label style={{ width: '80px' }}>수신번호</label>
-                    <Input type="text" placeholder="수신번호 입력" />
+                    <Input 
+                        type="text" 
+                        placeholder="수신번호 입력" 
+                        value={receiverNumber}
+                        onChange={(e) => setReceiverNumber(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                    />
                     <Button style={{ width: '30%' }} onClick={handleAddFromReservations}>예약자 검색</Button>
                 </InputGroup>
                 <InputGroup>
@@ -92,49 +121,49 @@ const MessageSend = () => {
                 </ReceiverListContent>
             </LeftSection>
             <RightSection>
-                <PhoneContainer>
-                    <PhoneScreen>
-                        <AppHeader>새 메시지</AppHeader>
-                        <MessageArea
-                            value={messageContent}
-                            onChange={(e) => setMessageContent(e.target.value)}
-                            placeholder="메시지를 입력하세요..."
+                <PhoneContainer title="새 메시지">
+                    <MessageArea
+                        value={messageContent}
+                        onChange={(e) => setMessageContent(e.target.value)}
+                        placeholder="메시지를 입력하세요..."
+                    />
+                    <Button onClick={handleLoadTemplate}>템플릿 선택</Button>
+                    <RadioGroup>
+                        <RadioButton
+                            active={isSendingNow}
+                            onClick={() => setIsSendingNow(true)}
+                        >
+                            즉시 발송
+                        </RadioButton>
+                        <RadioButton
+                            active={!isSendingNow}
+                            onClick={() => setIsSendingNow(false)}
+                        >
+                            예약 발송
+                        </RadioButton>
+                    </RadioGroup>
+                    <ScheduleGroup>
+                        <StyledInput
+                            type="date"
+                            value={scheduledDate}
+                            onChange={(e) => setScheduledDate(e.target.value)}
+                            disabled={isSendingNow}
                         />
-                        <Button onClick={handleLoadTemplate}>템플릿 선택</Button>
-                        <RadioGroup>
-                            <RadioButton 
-                                active={isSendingNow} 
-                                onClick={() => setIsSendingNow(true)}
-                            >
-                                즉시 발송
-                            </RadioButton>
-                            <RadioButton 
-                                active={!isSendingNow} 
-                                onClick={() => setIsSendingNow(false)}
-                            >
-                                예약 발송
-                            </RadioButton>
-                        </RadioGroup>
-                        {!isSendingNow && (
-                            <ScheduleGroup>
-                                <Input
-                                    type="date"
-                                    value={scheduledDate}
-                                    onChange={(e) => setScheduledDate(e.target.value)}
-                                />
-                                <Input
-                                    type="time"
-                                    value={scheduledTime}
-                                    onChange={(e) => setScheduledTime(e.target.value)}
-                                />
-                            </ScheduleGroup>
-                        )}
-                        <SendButton onClick={handleSendMessage}>
-                            문자 전송
-                        </SendButton>
-                    </PhoneScreen>
+                        <StyledInput
+                            type="time"
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            disabled={isSendingNow}
+                        />
+                    </ScheduleGroup>
+                    <SendButton onClick={handleSendMessage}>문자 전송</SendButton>
                 </PhoneContainer>
             </RightSection>
+            <ReservationModal 
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                onSelect={handleSelectReservation}
+            />
         </Container>
     );
 };
@@ -250,32 +279,6 @@ const ReceiverItem = styled.div`
     }
 `;
 
-const PhoneContainer = styled.div`
-    width: 375px;
-    height: 725px;
-    border-radius: 30px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    background-color: #f5f5f7;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-`;
-
-const PhoneScreen = styled.div`
-    flex: 1;
-    padding: 30px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-`;
-
-const AppHeader = styled.div`
-    font-size: 24px;
-    font-weight: 600;
-    color: #1c1c1e;
-    margin-bottom: 10px;
-`;
-
 const MessageArea = styled.textarea`
     flex: 1;
     border: none;
@@ -319,6 +322,22 @@ const RadioButton = styled.button`
 const ScheduleGroup = styled.div`
     display: flex;
     gap: 10px;
+    margin-bottom: 20px;
+`;
+
+const StyledInput = styled.input`
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+    flex: 1;
+    background-color: ${props => props.disabled ? '#f5f5f5' : 'white'};
+    cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
+
+    &:focus {
+        outline: none;
+        border-color: #007AFF;
+    }
 `;
 
 const SendButton = styled.button`

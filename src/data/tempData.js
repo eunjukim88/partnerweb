@@ -224,6 +224,39 @@ export const tempReservations = [
       phone: '010-0123-4567',
       bookingSource: '여기어때',
       stayType: '장기'
+    },
+    {
+      id: '21',
+      reservationNumber: 'R021',
+      roomNumber: '204호',
+      checkIn: '2024-10-27T15:00:00',
+      checkOut: '2024-10-31T11:00:00',
+      guestName: '아이유',
+      phone: '010-0123-4568',
+      bookingSource: '여기어때',
+      stayType: '장기'
+    },
+    {
+      id: '22',
+      reservationNumber: 'R021',
+      roomNumber: '204호',
+      checkIn: '2024-10-27T15:00:00',
+      checkOut: '2024-10-31T11:00:00',
+      guestName: '김영철',
+      phone: '010-0123-4569',
+      bookingSource: '여기어때',
+      stayType: '장기'
+    },
+    {
+      id: '23',
+      reservationNumber: 'R021',
+      roomNumber: '204호',
+      checkIn: '2024-10-27T15:00:00',
+      checkOut: '2024-10-31T11:00:00',
+      guestName: '김철수',
+      phone: '010-0123-4566',
+      bookingSource: '여기어때',
+      stayType: '장기'
     }
   ];
 

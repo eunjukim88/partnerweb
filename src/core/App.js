@@ -9,6 +9,7 @@ import StyledComponentsRegistry from '../lib/registry';
 import theme from '../styles/theme';
 import ReservationModal from '../components/reservations/ReservationModal';
 
+
 export default function RootLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
