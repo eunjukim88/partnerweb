@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import theme from '../../styles/theme';
+import EditModal from './EditModal';
 
 const TEMPLATES_PER_PAGE = 10;
 
@@ -30,8 +31,10 @@ const MessageTemplates = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleDeleteTemplate = (id) => {
-        setTemplates(prev => prev.filter(template => template.id !== id));
+    const handleDeleteTemplate = (id, title) => {
+        if (window.confirm(`"${title}" 템플릿을 삭제하시겠습니까? 삭제된 템플릿은 다시 복구되지 않습니다.`)) {
+            setTemplates(prev => prev.filter(template => template.id !== id));
+        }
     };
 
     return (
@@ -46,7 +49,7 @@ const MessageTemplates = () => {
                         <MessageArea readOnly value={template.content} />
                         <ButtonGroup>
                             <EditButton onClick={() => handleEditTemplate(template)}>수정</EditButton>
-                            <DeleteButton onClick={() => handleDeleteTemplate(template.id)}>삭제</DeleteButton>
+                            <DeleteButton onClick={() => handleDeleteTemplate(template.id, template.title)}>삭제</DeleteButton>
                         </ButtonGroup>
                     </TemplateCard>
                 ))}
@@ -93,38 +96,6 @@ const MessageTemplates = () => {
                 />
             )}
         </Container>
-    );
-};
-
-const EditModal = ({ template, onClose, onSave }) => {
-    const [title, setTitle] = useState(template ? template.title : '');
-    const [content, setContent] = useState(template ? template.content : '');
-
-    const handleSave = () => {
-        onSave({ id: template ? template.id : null, title, content });
-    };
-
-    return (
-        <ModalOverlay>
-            <ModalContent>
-                <h2>{template ? '템플릿 수정' : '새 템플릿 추가'}</h2>
-                <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="템플릿 제목"
-                />
-                <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="템플릿 내용"
-                />
-                <ButtonGroup>
-                    <Button onClick={handleSave}>저장</Button>
-                    <Button onClick={onClose}>취소</Button>
-                </ButtonGroup>
-            </ModalContent>
-        </ModalOverlay>
     );
 };
 
@@ -251,42 +222,6 @@ const PaginationButton = styled.button`
     &:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-    }
-`;
-
-const ModalOverlay = styled.div`
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-`;
-
-const ModalContent = styled.div`
-    background-color: white;
-    padding: 20px;
-    border-radius: 10px;
-    width: 80%;
-    max-width: 500px;
-
-    h2 {
-        margin-top: 0;
-    }
-
-    input, textarea {
-        width: 100%;
-        margin-bottom: 10px;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
-    }
-
-    textarea {
-        height: 150px;
     }
 `;
 
