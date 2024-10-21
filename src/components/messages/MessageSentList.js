@@ -5,13 +5,15 @@ import theme from '../../styles/theme';
 import { Button, Select, Input } from '../common/FormComponents';
 import MessageDetailModal from './MessageDetailModal';
 
+const currentYear = new Date().getFullYear();
+
 const MessageSentList = () => {
   const [sentMessages, setSentMessages] = useState([
     {
       id: 1,
       type: 'SMS',
       status: '완료',
-      sendTime: '2024-10-21 10:30:00',
+      sendTime: `${currentYear}-10-21 10:30:00`,
       title: '예약 확인',
       receiverNumber: '01012345678',
       result: '성공',
@@ -21,7 +23,7 @@ const MessageSentList = () => {
       id: 2,
       type: 'LMS',
       status: '대기',
-      sendTime: '2024-10-21 14:45:00',
+      sendTime: `${currentYear}-10-21 14:45:00`,
       title: '이벤트 안내',
       receiverNumber: '01087654321',
       result: '대기',
@@ -31,7 +33,7 @@ const MessageSentList = () => {
       id: 3,
       type: 'MMS',
       status: '발송중',
-      sendTime: '2024-10-21 09:15:00',
+      sendTime: `${currentYear}-10-21 09:15:00`,
       title: '결제 완료',
       receiverNumber: '01011112222',
       result: '성공',
@@ -41,7 +43,7 @@ const MessageSentList = () => {
       id: 4,
       type: 'SMS',
       status: '완료',
-      sendTime: '2024-10-21 16:20:00',
+      sendTime: `${currentYear}-10-21 16:20:00`,
       title: '배송 안내',
       receiverNumber: '01033334444',
       result: '성공',
@@ -51,7 +53,7 @@ const MessageSentList = () => {
       id: 5,
       type: 'LMS',
       status: '실패',
-      sendTime: '2024-10-21 11:00:00',
+      sendTime: `${currentYear}-10-21 11:00:00`,
       title: '긴급 공지',
       receiverNumber: '01055556666',
       result: '실패',
@@ -64,8 +66,16 @@ const MessageSentList = () => {
   const [listSize, setListSize] = useState(10);
   const [sendStatus, setSendStatus] = useState('all');
   const [sendResult, setSendResult] = useState('all');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return today;
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,11 +83,18 @@ const MessageSentList = () => {
 
   useEffect(() => {
     handleSearch();
-  }, [listSize, sendStatus, sendResult, startDate, endDate, searchTerm, currentPage]);
+  }, [sentMessages, listSize, sendStatus, sendResult, startDate, endDate, searchTerm, currentPage]);
 
   const handleSearch = () => {
     const filtered = sentMessages.filter(msg => {
-      const isInDateRange = new Date(msg.sendTime) >= startDate && new Date(msg.sendTime) <= endDate;
+      const msgDate = new Date(msg.sendTime);
+      msgDate.setHours(0, 0, 0, 0); // 시간을 무시하고 날짜만 비교
+      const startDateCopy = new Date(startDate);
+      startDateCopy.setHours(0, 0, 0, 0);
+      const endDateCopy = new Date(endDate);
+      endDateCopy.setHours(23, 59, 59, 999);
+      
+      const isInDateRange = msgDate >= startDateCopy && msgDate <= endDateCopy;
       const matchesSearchTerm = searchTerm === '' || msg.receiverNumber.includes(searchTerm.replace(/-/g, ''));
       const matchesSendStatus = sendStatus === 'all' || msg.status === sendStatus;
       const matchesSendResult = sendResult === 'all' || msg.result === sendResult;
@@ -107,8 +124,10 @@ const MessageSentList = () => {
 
   const handleQuickDate = (days) => {
     const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - days);
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(end);
+    start.setDate(start.getDate() - (days - 1)); // days - 1을 해서 오늘 날짜도 포함되도록 함
+    start.setHours(0, 0, 0, 0);
     setStartDate(start);
     setEndDate(end);
   };
