@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { FaSearch, FaRedo, FaEye } from 'react-icons/fa';
 import theme from '../../styles/theme';
-import { Button, Select, Input } from '../common/FormComponents';
+import { Button, Select, Input, Pagination } from '../common/FormComponents';
 import MessageDetailModal from './MessageDetailModal';
 
 const currentYear = new Date().getFullYear();
@@ -152,6 +152,8 @@ const MessageSentList = () => {
     setSelectedMessage(null);
   };
 
+  const totalPages = Math.ceil(sentMessages.length / listSize);
+
   return (
     <StyledContent>
       <ControlPanel>
@@ -241,6 +243,12 @@ const MessageSentList = () => {
           ))}
         </tbody>
       </MessageTable>
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={(page) => setCurrentPage(page)}
+      />
 
       {isModalOpen && (
         <MessageDetailModal

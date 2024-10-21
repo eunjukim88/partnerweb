@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { FaSearch, FaEdit, FaTrash, FaRedo } from 'react-icons/fa';
 import theme from '../../styles/theme';
 import ReservationModal from './ReservationModal';
-import { Button, Select, Input } from '../common/FormComponents';
+import { Button, Select, Input, Pagination } from '../common/FormComponents';
 
 const ReservationList = ({ reservations, setReservations, bookingSources, stayTypes }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -120,19 +120,6 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
     setEndDate(end);
   };
 
-  const renderPaginationButtons = () => {
-    const totalPages = Math.ceil(totalFilteredReservations.length / listSize);
-    return Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-      <PaginationButton
-        key={page}
-        onClick={() => setCurrentPage(page)}
-        active={currentPage === page}
-      >
-        {page}
-      </PaginationButton>
-    ));
-  };
-
   const handleResetFilters = () => {
     setStartDate(new Date());
     setEndDate(new Date());
@@ -144,6 +131,8 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
     setListSize(10);
     handleSearch();
   };
+
+  const totalPages = Math.ceil(totalFilteredReservations.length / listSize);
 
   return (
     <StyledContent >
@@ -248,15 +237,11 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
         </tbody>
       </ReservationTable>
 
-      <PaginationButtons>
-        <PaginationButton onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
-          &lt;
-        </PaginationButton>
-        {renderPaginationButtons()}
-        <PaginationButton onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(totalFilteredReservations.length / listSize)))} disabled={currentPage === Math.ceil(totalFilteredReservations.length / listSize)}>
-          &gt;
-        </PaginationButton>
-      </PaginationButtons>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={(page) => setCurrentPage(page)}
+      />
 
       {isModalOpen && (
         <ReservationModal
@@ -334,25 +319,6 @@ const PaginationContainer = styled.div`
   align-items: center;
 `;
 
-const PaginationButton = styled.button`
-  background-color: ${props => props.active ? theme.colors.buttonPrimary.background : 'white'};
-  color: ${props => props.active ? theme.colors.buttonPrimary.text : theme.colors.buttonSecondary.text};
-  border: 1px solid ${theme.colors.buttonSecondary.border};
-  padding: 5px 10px;
-  margin: 0 5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background-color: ${theme.colors.buttonSecondary.hover};
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
-
 const ActionButtonGroup = styled.div`
   display: flex;
   justify-content: center;
@@ -381,13 +347,6 @@ const ActionButton = styled.button`
 const TableCell = styled.td`
   text-align: center;
   vertical-align: middle;
-`;
-
-
-const PaginationButtons = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
 `;
 
 export default ReservationList;

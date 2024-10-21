@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { FaEye, FaTrash, FaSearch, FaRedo } from 'react-icons/fa';
 import theme from '../../styles/theme';
-import { Button, Select, Input } from '../common/FormComponents';
+import { Button, Select, Input, Pagination } from '../common/FormComponents';
 import ManagerDetailModal from './ManagerDetailModal';
 
 const ManagerList = () => {
@@ -51,7 +51,7 @@ const ManagerList = () => {
     setCurrentPage(1);
   };
 
-  const handleOpenModal = (manager) => {
+  const handleOpenModal = (manager = null) => {
     setSelectedManager(manager);
     setIsModalOpen(true);
   };
@@ -96,7 +96,7 @@ const ManagerList = () => {
           </StyledButton>
         </ControlGroup>
         <ControlGroup>
-          <StyledButton onClick={() => console.log('신규등록')}>신규등록</StyledButton>
+          <StyledButton onClick={() => handleOpenModal()}>신규등록</StyledButton>
         </ControlGroup>
       </ControlPanel>
 
@@ -133,17 +133,11 @@ const ManagerList = () => {
         </tbody>
       </ManagerTable>
 
-      <Pagination>
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-          <PageButton
-            key={page}
-            onClick={() => setCurrentPage(page)}
-            active={currentPage === page}
-          >
-            {page}
-          </PageButton>
-        ))}
-      </Pagination>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={(page) => setCurrentPage(page)}
+      />
 
       {isModalOpen && (
         <ManagerDetailModal
@@ -165,6 +159,7 @@ const StyledContent = styled.div`
 const ControlPanel = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin-bottom: 20px;
   flex-wrap: nowrap;
@@ -176,6 +171,10 @@ const ControlGroup = styled.div`
   align-items: center;
   gap: 10px;
   height: 100%;
+
+  &:last-child {
+    margin-left: auto;
+  }
 `;
 
 const SearchContainer = styled.div`
@@ -241,26 +240,6 @@ const StyledButton = styled(Button)`
   display: flex;
   align-items: center;
   justify-content: center;
-`;
-
-const Pagination = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-`;
-
-const PageButton = styled.button`
-  margin: 0 5px;
-  padding: 5px 10px;
-  border: 1px solid #ddd;
-  background-color: ${props => props.active ? theme.colors.primary : 'white'};
-  color: ${props => props.active ? 'white' : 'black'};
-  cursor: pointer;
-
-  &:hover {
-    background-color: ${theme.colors.primary};
-    color: white;
-  }
 `;
 
 export default ManagerList;
