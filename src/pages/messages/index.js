@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { TabMenu, TabButton } from '../../components/common/TabComponents';
 import MessageSend from '../../components/messages/MessageSend';
 import MessageTemplates from '../../components/messages/MessageTemplates';
-// import MessageSentList from '../../components/messages/MessageSentList'; // 아직 구현되지 않은 컴포넌트
+import MessageSentList from '../../components/messages/MessageSentList';
 
 const MessagesPage = () => {
     const [activeTab, setActiveTab] = useState('message-send');
@@ -33,7 +33,7 @@ const MessagesPage = () => {
             </TabMenu>
             {activeTab === 'message-send' && <MessageSend />}
             {activeTab === 'message-template' && <MessageTemplates />}
-            {activeTab === 'message-sentlist' && <p>발송 현황 컴포넌트가 아직 구현되지 않았습니다.</p>}
+            {activeTab === 'message-sentlist' && <MessageSentList />}
         </PageContent>
     );
 };
