@@ -13,14 +13,18 @@ const GlobalStyles = createGlobalStyle`
   }
 
   html, body {
-    height: 100%;
+    width: 100%;
   }
 
   body {
     line-height: 1;
     background-color: ${({ theme }) => theme.colors.background};
     font-family: prentendard;
-    color: #03222a;
+    background-color: #ffffff;
+    font-family: 'Pretendard'
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
 
   ol, ul {
