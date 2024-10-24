@@ -16,18 +16,22 @@ const LoginPage = () => {
   const [step, setStep] = useState('phone'); // 현재 단계를 저장합니다 ('phone' 또는 'verification').
   const [timeLeft, setTimeLeft] = useState(180); // 남은 시간을 저장합니다 (3분 = 180초).
   const router = useRouter(); // 페이지 이동을 위한 라우터 훅을 사용합니다.
+  const [loginSuccess, setLoginSuccess] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
-  // 인증번호 입력 제한 시간을 관리하는 useEffect 훅입니다.
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    let timer;
     if (step === 'verification' && timeLeft > 0) {
-      // 타이머를 설정하여 1초마다 timeLeft를 감소시킵니다.
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer); // 컴포넌트 언마운트 시 타이머를 정리합니다.
+      timer = setTimeout(() => setTimeLeft(prev => prev - 1), 1000);
     } else if (timeLeft === 0) {
-      // 시간이 만료되면 에러 메시지를 설정합니다.
       setError('인증 시간이 만료되었습니다. 인증번호를 재발송해주세요.');
     }
-  }, [step, timeLeft]); // step이나 timeLeft가 변경될 때마다 실행됩니다.
+    return () => clearTimeout(timer);
+  }, [step, timeLeft]);
 
   // 전화번호를 형식에 맞게 포맷팅하는 함수입니다.
   const formatPhoneNumber = (value) => {
@@ -59,31 +63,19 @@ const LoginPage = () => {
   const handleSendVerification = async () => {
     setError(null); // 에러 메시지를 초기화합니다.
     const cleanNumber = phoneNumber.replace(/-/g, ''); // 하이픈을 제거하여 숫자만 남깁니다.
-    if (cleanNumber.length !== 11) {
-      // 전화번호가 11자리가 아니면 에러 메시지를 설정합니다.
-      setError('올바른 전화번호를 입력해주세요.');
+    
+    // 테스트용 전화번호 확인
+    if (cleanNumber !== '01099999999') {
+      setError('올바른 전화번호를 입력해주세요. (테스트: 010-9999-9999)');
       return;
     }
 
     try {
-      // 서버에 인증번호 전송 요청을 보냅니다.
-      const response = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: cleanNumber }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        // 인증번호 전송에 성공하면 단계와 타이머를 업데이트합니다.
-        console.log('인증번호:', data.verificationCode); // 디버깅용 (실제 서비스에서는 제거해야 함)
-        setStep('verification'); // 단계 변경
-        setTimeLeft(180); // 타이머 초기화
-      } else {
-        // 서버에서 에러 메시지를 받으면 설정합니다.
-        setError(data.message || '인증번호 발송에 실패했습니다.');
-      }
+      // 실제 서버 요청 대신 즉시 성공으로 처리
+      console.log('인증번호: 123456'); // 테스트용 인증번호 출력
+      setStep('verification'); // 단계 변경
+      setTimeLeft(180); // 타이머 초기화
     } catch (error) {
-      // 요청 중 에러가 발생하면 에러 메시지를 설정합니다.
       console.error('Send verification error:', error);
       setError('서버 오류가 발생했습니다.');
     }
@@ -91,36 +83,33 @@ const LoginPage = () => {
 
   // 인증번호를 검증하는 함수입니다.
   const handleVerify = async () => {
-    setError(null); // 에러 메시지를 초기화합니다.
-    if (verificationCode.length !== 6) {
-      // 인증번호가 6자리가 아니면 에러 메시지를 설정합니다.
-      setError('올바른 인증번호를 입력해주세요.');
+    setError(null);
+    if (verificationCode !== '123456') {
+      setError('올바른 인증번호를 입력해주세요. (테스트: 123456)');
       return;
     }
-  
+
     try {
-      const cleanNumber = phoneNumber.replace(/-/g, ''); // 전화번호에서 하이픈 제거
-      // 서버에 인증번호 검증 요청을 보냅니다.
-      const response = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: cleanNumber, verificationCode }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        // 인증에 성공하면 토큰을 저장하고 페이지를 이동합니다.
-        localStorage.setItem('token', data.token); // 토큰을 로컬 스토리지에 저장
-        router.push('/rooms'); // '/rooms' 페이지로 이동
-      } else {
-        // 인증에 실패하면 에러 메시지를 설정합니다.
-        setError(data.message || '인증에 실패했습니다.');
-      }
+      // 로그인 성공 처리
+      const fakeToken = 'fake_token_' + Date.now(); // 실제 서비스에서는 서버에서 받은 토큰을 사용해야 합니다.
+      localStorage.setItem('token', fakeToken);
+      setLoginSuccess(true);
+      
+      console.log('로그인 성공, 토큰 저장됨:', fakeToken);
+      
+      setTimeout(() => {
+        console.log('페이지 이동 시도');
+        router.push('/rooms');
+      }, 3000);
     } catch (error) {
-      // 요청 중 에러가 발생하면 에러 메시지를 설정합니다.
       console.error('Verification error:', error);
       setError('서버 오류가 발생했습니다.');
     }
   };
+
+  if (!isClient) {
+    return null; // 또는 로딩 인디케이터
+  }
 
   return (
     <ThemeProvider theme={theme}>
@@ -129,7 +118,7 @@ const LoginPage = () => {
           <LogoWrapper>
             <Logo src={logo} alt="Logo" width={100} height={60} /> {/* 로고 이미지 */}
           </LogoWrapper>
-          <Title>{step === 'phone' ? '전화번호 입력' : '인증번호 입력'}</Title>
+          <Title>{step === 'phone' ? '로그인' : '인증번호 입력'}</Title>
           <Form onSubmit={handleSubmit}>
             {step === 'phone' ? ( // 현재 단계에 따라 다른 폼을 렌더링합니다.
               <>
@@ -167,6 +156,9 @@ const LoginPage = () => {
             )}
           </Form>
           {error && <ErrorMessage>{error}</ErrorMessage>} {/* 에러 메시지를 표시합니다. */}
+          {loginSuccess && (
+            <SuccessMessage>로그인 성공! 잠시 후 메인 페이지로 이동합니다.</SuccessMessage>
+          )}
         </LoginBox>
       </LoginContainer>
     </ThemeProvider>
@@ -183,11 +175,15 @@ const LoginContainer = styled.div`
 `;
 
 const LoginBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   background-color: white; // 배경색 흰색
-  padding: 2rem; // 패딩 설정
   border-radius: 8px; // 모서리를 둥글게
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); // 그림자 효과
-  width: 350px; // 너비 설정
+  width: 400px; // 너비 설정
+  height: 500px; // 높이 설정
 `;
 
 const Form = styled.form`
@@ -275,7 +271,7 @@ const Logo = styled(Image)`
 `;
 
 const Title = styled.h1`
-  margin-bottom: 1.5rem;
+  margin-bottom: 80px;
   text-align: left; // 왼쪽 정렬
   font-size: 1.5rem;
   color: #333; // 글자 색상
@@ -286,6 +282,13 @@ const InputLabel = styled.label`
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
   color: #666; // 글자 색상
+`;
+
+const SuccessMessage = styled.p`
+  color: #2ecc71;
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.9rem;
 `;
 
 export default LoginPage; // 컴포넌트를 내보냅니다.

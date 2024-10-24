@@ -9,7 +9,6 @@ import StyledComponentsRegistry from '../lib/registry';
 import theme from '../styles/theme';
 import ReservationModal from '../components/reservations/ReservationModal';
 
-
 export default function RootLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -18,17 +17,22 @@ export default function RootLayout({ children }) {
 
   useEffect(() => {
     const checkLoginStatus = () => {
-      const token = localStorage.getItem('token');
-      console.log('Token:', token); // 디버깅용
-      setIsLoggedIn(!!token);
-      if (!token && router.pathname !== '/login') {
+      const storedToken = localStorage.getItem('token');
+      console.log('Token:', storedToken); // 디버깅용
+      const loggedIn = !!storedToken;
+      setIsLoggedIn(loggedIn);
+
+      if (!loggedIn && router.pathname !== '/login') {
+        console.log('Not logged in, redirecting to login');
         router.push('/login');
-      } else if (token && router.pathname === '/login') {
+      } else if (loggedIn && router.pathname === '/login') {
+        console.log('Already logged in, redirecting to rooms');
         router.push('/rooms');
       }
     };
+
     checkLoginStatus();
-  }, [router]);
+  }, [router.pathname]);
 
   const toggleSidebar = () => {
     console.log('toggleSidebar called');

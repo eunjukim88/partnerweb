@@ -68,7 +68,7 @@ const RoomsPage = () => {
             {['all', 'hourly', 'overnight', 'long'].map(tabFilter => (
               <Tab 
                 key={tabFilter}
-                active={filter === tabFilter} 
+                $active={filter === tabFilter} 
                 onClick={() => setFilter(tabFilter)} 
                 color={theme.colors[tabFilter === 'all' ? 'vacant' : `${tabFilter}Stay`]}
               >
@@ -153,8 +153,8 @@ const TabContainer = styled.div`
 `;
 
 const Tab = styled.button`
-  background-color: ${props => props.active ? props.color : 'transparent'};
-  color: ${props => props.active ? '#ffffff' : props.color};
+  background-color: ${props => props.$active ? theme.colors.buttonPrimary.background : 'transparent'};
+  color: ${props => props.$active ? theme.colors.buttonPrimary.text : theme.colors.text};
   border: 1px solid ${props => props.color};
   padding: 8px 15px;
   margin-right: 10px;
