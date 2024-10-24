@@ -39,6 +39,7 @@ export const PaginationButton = styled.button`
   border: 1px solid ${theme.colors.buttonSecondary.border};
   padding: 5px 10px;
   margin: 0 5px;
+  flex-end: 1;
   cursor: pointer;
   transition: all 0.3s ease;
 

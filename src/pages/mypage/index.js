@@ -73,7 +73,7 @@ const PageContainer = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 80vw;
+  width: 70vw;
   height: 80vh;
   background-color: #ffffff;
   border: 1px solid #e0e0e0;
@@ -85,9 +85,8 @@ const PageContainer = styled.div`
 const LeftSection = styled.div`
   width: 200px;
   height: 100%;
-  padding: 20px;
-  background-color: #f8f8f8;
-  border-right: 1px solid #e0e0e0;
+  padding: 15px 0px 15px 15px;
+  background-color: #3395FF;
   display: flex;
   flex-direction: column;
 `;
@@ -98,27 +97,39 @@ const Title = styled.h1`
   color: #333;
   font-weight: 700;
   text-align: center;
+  color: #FFFFFF;
 `;
 
 const MenuList = styled.ul`
   list-style-type: none;
   padding: 0;
+  margin: 0;
 `;
 
 const MenuItem = styled.li`
   margin-bottom: 10px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 
   a {
     display: block;
-    padding: 10px 15px;
+    padding: 10px 10px;
     text-decoration: none;
-    color: ${props => props.isSelected ? theme.colors.buttonPrimary.text : theme.colors.buttonSecondary.text};
-    background-color: ${props => props.isSelected ? theme.colors.buttonPrimary.background : 'transparent'};
-    border-radius: 5px;
+    color: ${props => props.isSelected ? '#3395FF' : '#FFFFFF'};
+    background-color: ${props => props.isSelected ? '#FFFFFF' : 'transparent'};
+    border-radius: 20px 0px 0px 20px;
+    font-weight: ${props => props.isSelected ? '700' : '400'};
+    height: 60px;
+    width: 180px;
+    margin: 10px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     transition: all 0.3s ease;
 
     &:hover {
-      background-color: ${props => props.isSelected ? theme.colors.buttonPrimary.hover : theme.colors.buttonSecondary.hover};
+      background-color: ${props => props.isSelected ? theme.colors.buttonPrimary.hover : 'rgba(0, 0, 0, 0.1)'};
     }
   }
 `;
@@ -127,4 +138,5 @@ const RightSection = styled.div`
   flex: 1;
   padding: 30px;
   overflow-y: auto;
+  height: 100%;
 `;
