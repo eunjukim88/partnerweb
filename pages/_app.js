@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { ThemeProvider } from 'styled-components';
-import GlobalStyles from '../styles/golbalStyles';
-import theme from '../styles/theme';
-import RootLayout from '../core/App';
+import GlobalStyles from '../src/styles/golbalStyles';
+import theme from '../src/styles/theme';
+import RootLayout from '../src/core/App';
 
 function MyApp({ Component, pageProps }) {
   useEffect(() => {

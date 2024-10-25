@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import styled from 'styled-components';
-import theme from '../../styles/theme';
+import theme from '../../src/styles/theme';
 
-import UserGuide from '../../components/mypage/UserGuide';
-import RoomSettings from '../../components/mypage/RoomSettings';
-import ReservationSettings from '../../components/mypage/ReservationSettings';
-import RoomEdit from '../../components/mypage/RoomEdit';
+import UserGuide from '../../src/components/mypage/UserGuide';
+import RoomSettings from '../../src/components/mypage/RoomSettings';
+import ReservationSettings from '../../src/components/mypage/ReservationSettings';
+import RoomEdit from '../../src/components/mypage/RoomEdit';
 
 const MyPage = () => {
   const router = useRouter();

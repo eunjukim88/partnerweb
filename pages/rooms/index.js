@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { FaThLarge, FaList, FaFilter, FaChevronDown } from 'react-icons/fa';
 import styled from 'styled-components';
-import RoomCard from '../../components/rooms/RoomCard';
-import RoomList from '../../components/rooms/RoomList';
-import theme from '../../styles/theme';
-import RootLayout from '../../core/App';
+import RoomCard from '../../src/components/rooms/RoomCard';
+import RoomList from '../../src/components/rooms/RoomList';
+import theme from '../../src/styles/theme';
+import RootLayout from '../../src/core/App';
 
 const RoomsPage = () => {
     const [currentTime, setCurrentTime] = useState(new Date());

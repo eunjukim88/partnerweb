@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { TabMenu, TabButton } from '../../components/common/TabComponents';
-import MessageSend from '../../components/messages/MessageSend';
-import MessageTemplates from '../../components/messages/MessageTemplates';
-import MessageSentList from '../../components/messages/MessageSentList';
+import { TabMenu, TabButton } from '../../src/components/common/TabComponents';
+import MessageSend from '../../src/components/messages/MessageSend';
+import MessageTemplates from '../../src/components/messages/MessageTemplates';
+import MessageSentList from '../../src/components/messages/MessageSentList';
 
 const MessagesPage = () => {
     const [activeTab, setActiveTab] = useState('message-send');

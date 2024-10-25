@@ -8,9 +8,10 @@ const RoomEdit = ({ roomNumber }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [room, setRoom] = useState({
+    id: '',
+    number: roomNumber || '',
     floor: '',
     building: '',
-    number: roomNumber || '',
     name: '',
     type: '',
     showInStatus: {
@@ -91,13 +92,22 @@ const RoomEdit = ({ roomNumber }) => {
     }));
   };
 
+  const handleSave = async () => {
+    try {
+      await axios.put(`/api/mypage/roomslist`, room);
+      router.push('/mypage?section=room-settings');
+    } catch (error) {
+      console.error('객실 정보 저장에 실패했습니다:', error);
+    }
+  };
+
   return (
     <Container>
       <Header>
         <BackButton onClick={() => router.push('/mypage?section=room-settings')}>
           <FaArrowLeft size={20} />
         </BackButton>
-        <Title>{roomNumber}호 수정</Title>
+        <Title>{roomNumber}호 수���</Title>
       </Header>
 
       <Section>
@@ -268,7 +278,7 @@ const RoomEdit = ({ roomNumber }) => {
         </RateTableContainer>
       </Section>
 
-      <Button onClick={() => console.log('저장')}>저장</Button>
+      <Button onClick={handleSave}>저장</Button>
     </Container>
   );
 };
@@ -522,3 +532,4 @@ const Button = styled.button`
     background-color: #0d8bf2;
   }
 `;
+

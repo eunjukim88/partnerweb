@@ -1,4 +1,4 @@
-import { tempReservations } from '../../../data/tempData';
+import { tempReservations } from '../../../src/data/tempData';
 
 let reservations = [...tempReservations];
 

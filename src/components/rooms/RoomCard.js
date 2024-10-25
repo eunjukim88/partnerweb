@@ -5,7 +5,7 @@ import styled, { keyframes } from 'styled-components'; // styled-components와 k
 import { MdCreditCard, MdCreditCardOff } from "react-icons/md"; // Material Design 아이콘 임포트
 import { IoIosWarning } from "react-icons/io"; // iOS 경고 아이콘 임포트
 import WifiIcon from '../WifiIcon'; // WifiIcon 컴포넌트 임포트
-import { fetchWifiStrength } from '../../pages/api/rooms'; // Wi-Fi 강도 조회 API 함수 임포트
+import { fetchWifiStrength } from '../../../pages/api/rooms'; // Wi-Fi 강도 조회 API 함수 임포트
 import theme from '../../styles/theme'; // 테마 설정 임포트
 
 const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 받음

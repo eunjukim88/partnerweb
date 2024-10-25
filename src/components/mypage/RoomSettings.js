@@ -1,25 +1,52 @@
-import { useState } from 'react';
-import { useRouter } from 'next/router';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import styled from 'styled-components';
 import { Button, Input, Pagination } from '../common/FormComponents';
 
 const RoomSettings = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [rooms, setRooms] = useState([
-    { floor: 1, building: 'A', number: '101', name: '디럭스', type: '더블' },
-    { floor: 1, building: 'A', number: '102', name: '스위트', type: '트윈' },
-    { floor: 2, building: 'B', number: '201', name: '스탠다드', type: '싱글' },
-    // ... 더 많은 방 데이터 추가
-  ]);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/mypage/roomslist');
+      console.log('API 응답:', response.data);
+      setRooms(response.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('객실 정보를 가져오는 데 실패했습니다:', error.response?.data || error.message);
+      setError(`객실 정보를 불러오는 중 오류가 발생했습니다: ${error.response?.data?.details || error.message}`);
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div>로딩 중...</div>;
+  if (error) return <div>{error}</div>;
 
   const itemsPerPage = 10;
   const totalPages = Math.ceil(rooms.length / itemsPerPage);
 
-  const router = useRouter();
-
   const handleEdit = (roomNumber) => {
-    router.push(`/mypage?section=room-edit&roomNumber=${roomNumber}`, undefined, { shallow: true });
+    // router.push(`/mypage?section=room-edit&roomNumber=${roomNumber}`, undefined, { shallow: true });
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('정말로 이 객실을 삭제하시겠습니까?')) {
+      try {
+        await axios.delete(`/api/mypage/roomslist?id=${id}`);
+        fetchRooms(); // 목록 새로고침
+      } catch (error) {
+        console.error('객실 삭제에 실패했습니다:', error);
+      }
+    }
   };
 
   const filteredRooms = rooms.filter((room) => room.number.includes(searchTerm));

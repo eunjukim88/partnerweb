@@ -5,7 +5,7 @@ import styled, { ThemeProvider } from 'styled-components'; // 스타일링을 �
 import { useRouter } from 'next/navigation'; // Next.js의 라우터 훅을 사용합니다.
 import Image from 'next/image'; // 이미지 최적화를 위한 Image 컴포넌트를 임포트합니다.
 import logo from '@/public/logo.svg';
-import theme from '../../styles/theme';
+import theme from '../../src/styles/theme';
 
 // 로그인 페이지 컴포넌트입니다.
 const LoginPage = () => {

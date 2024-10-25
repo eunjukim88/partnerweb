@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import ReservationList from '../../components/reservations/ReservationList';
-import TimelineView from '../../components/reservations/TimelineView';
-import { TabMenu, TabButton } from '../../components/common/TabComponents';
-import { getReservations, bookingSources, stayTypes, roomNumbers } from '../../data/tempData';
+import ReservationList from '../../src/components/reservations/ReservationList';
+import TimelineView from '../../src/components/reservations/TimelineView';
+import { TabMenu, TabButton } from '../../src/components/common/TabComponents';
+import { getReservations, bookingSources, stayTypes, roomNumbers } from '../../src/data/tempData';
 
 const ReservationsPage = () => {
   const [activeTab, setActiveTab] = useState('list');
