@@ -13,28 +13,7 @@ const RoomEdit = ({ roomNumber }) => {
     floor: '',
     building: '',
     name: '',
-    type: '',
-    showInStatus: {
-      floor: true,
-      building: true,
-      name: true,
-      type: true
-    },
-    salesLimit: {
-      hourly: false,
-      nightly: false,
-      longTerm: false
-    },
-    hourlyRate: {
-      weekday: '',
-      friday: '',
-      weekend: ''
-    },
-    nightlyRate: {
-      weekday: '',
-      friday: '',
-      weekend: ''
-    }
+    type: ''
   });
 
   useEffect(() => {
@@ -62,39 +41,10 @@ const RoomEdit = ({ roomNumber }) => {
     setRoom(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSwitchChange = (field) => {
-    setRoom(prev => ({
-      ...prev,
-      showInStatus: {
-        ...prev.showInStatus,
-        [field]: !prev.showInStatus[field]
-      }
-    }));
-  };
-
-  const handleCheckboxChange = (field) => {
-    setRoom(prev => ({
-      ...prev,
-      salesLimit: {
-        ...prev.salesLimit,
-        [field]: !prev.salesLimit[field]
-      }
-    }));
-  };
-
-  const handleRateChange = (type, field, value) => {
-    setRoom(prev => ({
-      ...prev,
-      [type]: {
-        ...prev[type],
-        [field]: value
-      }
-    }));
-  };
-
   const handleSave = async () => {
     try {
-      await axios.put(`/api/mypage/roomslist`, room);
+      const { id, number, floor, building, name, type } = room;
+      await axios.put(`/api/mypage/roomslist`, { id, number, floor, building, name, type });
       router.push('/mypage?section=room-settings');
     } catch (error) {
       console.error('객실 정보 저장에 실패했습니다:', error);
@@ -107,7 +57,7 @@ const RoomEdit = ({ roomNumber }) => {
         <BackButton onClick={() => router.push('/mypage?section=room-settings')}>
           <FaArrowLeft size={20} />
         </BackButton>
-        <Title>{roomNumber}호 수���</Title>
+        <Title>{roomNumber}호 수정</Title>
       </Header>
 
       <Section>
@@ -127,14 +77,6 @@ const RoomEdit = ({ roomNumber }) => {
               value={room.floor}
               onChange={handleInputChange}
             />
-            <Switch>
-              <input
-                type="checkbox"
-                checked={room.showInStatus.floor}
-                onChange={() => handleSwitchChange('floor')}
-              />
-              <span></span>
-            </Switch>
           </FormGroup>
           <FormGroup>
             <Label>동수</Label>
@@ -143,14 +85,6 @@ const RoomEdit = ({ roomNumber }) => {
               value={room.building}
               onChange={handleInputChange}
             />
-            <Switch>
-              <input
-                type="checkbox"
-                checked={room.showInStatus.building}
-                onChange={() => handleSwitchChange('building')}
-              />
-              <span></span>
-            </Switch>
           </FormGroup>
         </FormRow>
 
@@ -162,14 +96,6 @@ const RoomEdit = ({ roomNumber }) => {
               value={room.name}
               onChange={handleInputChange}
             />
-            <Switch>
-              <input
-                type="checkbox"
-                checked={room.showInStatus.name}
-                onChange={() => handleSwitchChange('name')}
-              />
-              <span></span>
-            </Switch>
           </FormGroup>
           <FormGroup>
             <Label>객실 타입</Label>
@@ -178,14 +104,6 @@ const RoomEdit = ({ roomNumber }) => {
               value={room.type}
               onChange={handleInputChange}
             />
-            <Switch>
-              <input
-                type="checkbox"
-                checked={room.showInStatus.type}
-                onChange={() => handleSwitchChange('type')}
-              />
-              <span></span>
-            </Switch>
           </FormGroup>
         </FormRow>
       </Section>
@@ -532,4 +450,7 @@ const Button = styled.button`
     background-color: #0d8bf2;
   }
 `;
+
+
+
 

@@ -17,13 +17,14 @@ const RoomSettings = () => {
   const fetchRooms = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await axios.get('/api/mypage/roomslist');
       console.log('API 응답:', response.data);
       setRooms(response.data);
-      setLoading(false);
     } catch (error) {
-      console.error('객실 정보를 가져오는 데 실패했습니다:', error.response?.data || error.message);
+      console.error('객실 정보를 가져오는 데 실패했습니다:', error);
       setError(`객실 정보를 불러오는 중 오류가 발생했습니다: ${error.response?.data?.details || error.message}`);
+    } finally {
       setLoading(false);
     }
   };
@@ -35,16 +36,17 @@ const RoomSettings = () => {
   const totalPages = Math.ceil(rooms.length / itemsPerPage);
 
   const handleEdit = (roomNumber) => {
-    // router.push(`/mypage?section=room-edit&roomNumber=${roomNumber}`, undefined, { shallow: true });
+    // 수정 페이지로 이동하는 로직
   };
 
   const handleDelete = async (id) => {
     if (window.confirm('정말로 이 객실을 삭제하시겠습니까?')) {
       try {
         await axios.delete(`/api/mypage/roomslist?id=${id}`);
-        fetchRooms(); // 목록 새로고침
+        fetchRooms(); // 삭제 후 목록 새로고침
       } catch (error) {
         console.error('객실 삭제에 실패했습니다:', error);
+        setError('객실 삭제 중 오류가 발생했습니다. 다시 시도해 주세요.');
       }
     }
   };
