@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import Image from 'next/image';
 import { IoMenuOutline } from "react-icons/io5";
 
-const Header = ({ toggleSidebar, onOpenReservationModal }) => {
+const Header = ({ toggleSidebar, onOpenReservationModal, isLoggedIn }) => {
   const handleReservationClick = () => {
     if (onOpenReservationModal) {
       onOpenReservationModal();
@@ -14,15 +14,19 @@ const Header = ({ toggleSidebar, onOpenReservationModal }) => {
 
   return (
     <StyledHeader>
-      <MenuIcon onClick={toggleSidebar}>
-        <IoMenuOutline size={24} />
-      </MenuIcon>
+      {isLoggedIn && (
+        <MenuIcon onClick={toggleSidebar}>
+          <IoMenuOutline size={35} />
+        </MenuIcon>
+      )}
       <Logo src="/logo.svg" alt="Logo" width={100} height={60} />
-      <ButtonContainer>
-        <HeaderButton>공지사항</HeaderButton>
-        <HeaderButton>매출</HeaderButton>
-        <HeaderButton onClick={handleReservationClick}>예약등록</HeaderButton>
-      </ButtonContainer>
+      {isLoggedIn && (
+        <ButtonContainer>
+          <HeaderButton>공지사항</HeaderButton>
+          <HeaderButton>매출</HeaderButton>
+          <HeaderButton onClick={handleReservationClick}>예약등록</HeaderButton>
+        </ButtonContainer>
+      )}
     </StyledHeader>
   );
 };

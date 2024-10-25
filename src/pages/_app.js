@@ -1,12 +1,25 @@
-import RootLayout from '../core/App';
+import { useEffect } from 'react';
+import { ThemeProvider } from 'styled-components';
 import GlobalStyles from '../styles/golbalStyles';
+import theme from '../styles/theme';
+import RootLayout from '../core/App';
 
 function MyApp({ Component, pageProps }) {
+  useEffect(() => {
+    // 클라이언트 사이드에서만 실행되도록 합니다.
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      // 여기에 토큰 유효성 검사 로직을 추가할 수 있습니다.
+    }
+  }, []);
+
   return (
-    <RootLayout>
+    <ThemeProvider theme={theme}>
       <GlobalStyles />
-      <Component {...pageProps} />
-    </RootLayout>
+      <RootLayout>
+        <Component {...pageProps} />
+      </RootLayout>
+    </ThemeProvider>
   );
 }
 

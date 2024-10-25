@@ -11,28 +11,25 @@ import ReservationModal from '../components/reservations/ReservationModal';
 
 export default function RootLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(null); // 초기값을 null로 설정
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    if (!router.isReady) return; // 라우터가 준비되지 않았으면 아무 작업도 하지 않음.
+
     const checkLoginStatus = () => {
       const storedToken = localStorage.getItem('token');
-      console.log('Token:', storedToken); // 디버깅용
       const loggedIn = !!storedToken;
       setIsLoggedIn(loggedIn);
 
       if (!loggedIn && router.pathname !== '/login') {
-        console.log('Not logged in, redirecting to login');
         router.push('/login');
-      } else if (loggedIn && router.pathname === '/login') {
-        console.log('Already logged in, redirecting to rooms');
-        router.push('/rooms');
       }
     };
 
     checkLoginStatus();
-  }, [router.pathname]);
+  }, [router.isReady, router.pathname]);
 
   const toggleSidebar = () => {
     console.log('toggleSidebar called');
@@ -60,29 +57,34 @@ export default function RootLayout({ children }) {
     setIsReservationModalOpen(false);
   };
 
+  if (isLoggedIn === null || !router.isReady) {
+    return null; // 로딩 중일 때는 아무것도 렌더링하지 않음.
+  }
+
   return (
     <StyledComponentsRegistry>
       <ThemeProvider theme={theme}>
-        {isLoggedIn && router.pathname !== '/login' && (
-          <>
-            <Header 
-              toggleSidebar={toggleSidebar} 
-              onOpenReservationModal={handleOpenReservationModal}
-            />
-            <Sidebar 
-              isOpen={isSidebarOpen} 
-              toggleSidebar={toggleSidebar}
-              handleLogout={handleLogout}
-            />
-            {isReservationModalOpen && (
-              <ReservationModal 
-                onClose={handleCloseReservationModal} 
-                onSave={handleSaveReservation}
-              />
-            )}
-          </>
+        {isLoggedIn && router.pathname !== '/' && router.pathname !== '/login' && (
+          <Header 
+            toggleSidebar={toggleSidebar} 
+            onOpenReservationModal={handleOpenReservationModal}
+            isLoggedIn={isLoggedIn}
+          />
         )}
-        <main style={{ marginTop: isLoggedIn && router.pathname !== '/login' ? '80px' : '0' }}>
+        {isLoggedIn && router.pathname !== '/' && router.pathname !== '/login' && (
+          <Sidebar 
+            isOpen={isSidebarOpen} 
+            toggleSidebar={toggleSidebar}
+            handleLogout={handleLogout}
+          />
+        )}
+        {isReservationModalOpen && (
+          <ReservationModal 
+            onClose={handleCloseReservationModal} 
+            onSave={handleSaveReservation}
+          />
+        )}
+        <main style={{ marginTop: (isLoggedIn && router.pathname !== '/' && router.pathname !== '/login') ? '80px' : '0' }}>
           {children}
         </main>
       </ThemeProvider>

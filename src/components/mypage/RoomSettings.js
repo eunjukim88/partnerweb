@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import styled from 'styled-components';
 import { Button, Input, Pagination } from '../common/FormComponents';
 
@@ -15,8 +16,10 @@ const RoomSettings = () => {
   const itemsPerPage = 10;
   const totalPages = Math.ceil(rooms.length / itemsPerPage);
 
+  const router = useRouter();
+
   const handleEdit = (roomNumber) => {
-    alert(`${roomNumber}호 수정`);
+    router.push(`/mypage?section=room-edit&roomNumber=${roomNumber}`, undefined, { shallow: true });
   };
 
   const filteredRooms = rooms.filter((room) => room.number.includes(searchTerm));
@@ -39,32 +42,32 @@ const RoomSettings = () => {
         </SearchContainer>
       </Header>
       <TableContainer>
-        <Table>
+        <MessageTable>
           <thead>
             <tr>
-              <Th>층수</Th>
-              <Th>동수</Th>
-              <Th>호수</Th>
-              <Th>객실이름</Th>
-              <Th>객실타입</Th>
-              <Th>수정</Th>
+              <TableHeader>층수</TableHeader>
+              <TableHeader>동수</TableHeader>
+              <TableHeader>호수</TableHeader>
+              <TableHeader>객실이름</TableHeader>
+              <TableHeader>객실타입</TableHeader>
+              <TableHeader>수정</TableHeader>
             </tr>
           </thead>
           <tbody>
             {paginatedRooms.map((room, index) => (
               <tr key={index}>
-                <Td>{room.floor}</Td>
-                <Td>{room.building}</Td>
-                <Td>{room.number}</Td>
-                <Td>{room.name}</Td>
-                <Td>{room.type}</Td>
-                <Td>
-                  <Button onClick={() => handleEdit(room.number)}>수정</Button>
-                </Td>
+                <TableCell>{room.floor}</TableCell>
+                <TableCell>{room.building}</TableCell>
+                <TableCell>{room.number}</TableCell>
+                <TableCell>{room.name}</TableCell>
+                <TableCell>{room.type}</TableCell>
+                <TableCell>
+                  <ActionButton onClick={() => handleEdit(room.number)}>수정</ActionButton>
+                </TableCell>
               </tr>
             ))}
           </tbody>
-        </Table>
+        </MessageTable>
       </TableContainer>
       <PaginationContainer>
         <Pagination
@@ -101,6 +104,7 @@ const Title = styled.h2`
 
 const SearchContainer = styled.div`
   width: 300px;
+  text-align: right;
 `;
 
 const TableContainer = styled.div`
@@ -108,22 +112,45 @@ const TableContainer = styled.div`
   overflow-y: auto;
 `;
 
-const Table = styled.table`
+const MessageTable = styled.table`
   width: 100%;
   border-collapse: collapse;
+  margin-bottom: 20px;
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+  }
+
+  th {
+    background-color: #f2f2f2;
+  }
 `;
 
-const Th = styled.th`
-  background-color: ${props => props.theme.colors.buttonSecondary.background};
-  color: ${props => props.theme.colors.text};
-  padding: 12px;
-  text-align: left;
-  border: 1px solid ${props => props.theme.colors.border};
+const TableHeader = styled.th`
+  background-color: #f2f2f2;
+  text-align: center;
+  vertical-align: middle;
 `;
 
-const Td = styled.td`
-  padding: 12px;
-  border: 1px solid ${props => props.theme.colors.border};
+const TableCell = styled.td`
+  text-align: center;
+  vertical-align: middle;
+`;
+
+const ActionButton = styled(Button)`
+  background-color: #3395FF;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: #2678d9;
+  }
 `;
 
 const PaginationContainer = styled.div`

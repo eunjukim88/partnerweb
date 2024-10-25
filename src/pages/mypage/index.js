@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import styled from 'styled-components';
 import theme from '../../styles/theme';
-// 각 페이지 컴포넌트를 import합니다
+
 import UserGuide from '../../components/mypage/UserGuide';
 import RoomSettings from '../../components/mypage/RoomSettings';
 import ReservationSettings from '../../components/mypage/ReservationSettings';
+import RoomEdit from '../../components/mypage/RoomEdit';
 
 const MyPage = () => {
   const router = useRouter();
-  const { section = 'user-guide' } = router.query;
+  const { section = 'user-guide', roomNumber } = router.query;
 
   const menuItems = [
     { id: 'user-guide', name: '사용자 안내 설정' },
@@ -25,6 +26,8 @@ const MyPage = () => {
         return <UserGuide />;
       case 'room-settings':
         return <RoomSettings />;
+      case 'room-edit':
+        return <RoomEdit roomNumber={roomNumber} />;
       case 'reservation-settings':
         return <ReservationSettings />;
       case 'special-date-settings':
@@ -33,6 +36,11 @@ const MyPage = () => {
         return <div>잘못된 섹션입니다.</div>;
     }
   };
+
+  // URL 변경 시 컴포넌트 리렌더링
+  useEffect(() => {
+    // URL이 변경될 때 필요한 로직을 여기에 추가하세요.
+  }, [router.query]);
 
   return (
     <PageWrapper>
@@ -86,7 +94,7 @@ const LeftSection = styled.div`
   width: 200px;
   height: 100%;
   padding: 15px 0px 15px 15px;
-  background-color: #3395FF;
+  background-color: #E6F0FF;
   display: flex;
   flex-direction: column;
 `;
@@ -95,9 +103,9 @@ const Title = styled.h1`
   font-size: 24px;
   margin: 40px 0 40px 0;
   color: #333;
-  font-weight: 700;
+  font-weight: 800;
   text-align: center;
-  color: #FFFFFF;
+  color: #171f26;
 `;
 
 const MenuList = styled.ul`
@@ -116,9 +124,12 @@ const MenuItem = styled.li`
     display: block;
     padding: 10px 10px;
     text-decoration: none;
-    color: ${props => props.isSelected ? '#3395FF' : '#FFFFFF'};
+    color: ${props => props.isSelected ? '#3395FF' : '#171f26'};
     background-color: ${props => props.isSelected ? '#FFFFFF' : 'transparent'};
     border-radius: 20px 0px 0px 20px;
+    border-left: ${props => props.isSelected ? '2px solid #3395FF' : 'none'};
+    border-top: ${props => props.isSelected ? '2px solid #3395FF' : 'none'};
+    border-bottom: ${props => props.isSelected ? '2px solid #3395FF' : 'none'};
     font-weight: ${props => props.isSelected ? '700' : '400'};
     height: 60px;
     width: 180px;
@@ -126,7 +137,6 @@ const MenuItem = styled.li`
     display: flex;
     justify-content: center;
     align-items: center;
-    transition: all 0.3s ease;
 
     &:hover {
       background-color: ${props => props.isSelected ? theme.colors.buttonPrimary.hover : 'rgba(0, 0, 0, 0.1)'};

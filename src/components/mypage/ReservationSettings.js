@@ -54,7 +54,7 @@ const TimeSelector = ({ value, onChange }) => {
       {isOpen && (
         <DropdownContainer>
           <DropdownColumn>
-            {['오���', '오후'].map((p) => (
+            {['오전', '오후'].map((p) => (
               <DropdownItem key={p} onClick={() => handleSelect('period', p)} selected={p === value.split(':')[0]}>
                 {p}
               </DropdownItem>
@@ -118,7 +118,8 @@ const SettingForm = ({ type, settings, onSettingsChange }) => {
             <Label>체크인</Label>
             <TimeSelector 
               value={settings.checkInTime} 
-              onChange={(time) => onSettingsChange({ ...settings, checkInTime: time })} 
+              onChange={(time) => onSettingsChange({ ...settings, checkInTime: time
+               })} 
             />
           </InputGroup>
           <InputGroup>
@@ -245,23 +246,24 @@ const TabContainer = styled.div`
 
 const Tab = styled.button`
   padding: 10px 20px;
+  margin-bottom: 20px;
   border: none;
-  background-color: ${props => props.active ? theme.colors.buttonPrimary.background : 'transparent'};
-  color: ${props => props.active ? theme.colors.buttonPrimary.text : theme.colors.text};
-  border-radius: 20px 20px 0px 0px;
-  display: flex;
+  background-color: ${props => props.active ? '#ffffff' : '#f5f5f5'};
+  color: ${props => props.active ? '#3395FF' : '#808080'};
+  font-weight: ${props => props.active ? '7800' : '400'};
+  border-radius: 30px 30px 0px 0px;
+  border-top: ${props => props.active ? '2px solid #3395FF' : 'none'};
+  border-left: ${props => props.active ? '2px solid #3395FF' : 'none'};
+  border-right: ${props => props.active ? '2px solid #3395FF' : 'none'};
+  display: flex
   justify-content: center;
   align-items: center;
   cursor: pointer;
   width: 150px;
   height: 40px;
   font-weight: ${props => props.active ? '700' : '400'};
-  font-size: 16px;
+  font-size: 18px;
   transition: all 0.3s ease;
-
-  &:hover {
-    background-color: ${props => props.active ? theme.colors.buttonPrimary.hover : theme.colors.buttonSecondary.hover};
-  }
 `;
 
 const Section = styled.div`
@@ -283,9 +285,8 @@ const DayContainer = styled.div`
 const DayButton = styled(Button)`
   width: 80px;
   height: 40px;
-  background-color: ${props => props.selected ? '#3395FF' : '#FFFFFF'};
-  color: ${props => props.selected ? '#FFFFFF' : '#3395FF'};
-  border: 1px solid #3395FF;
+  background-color: ${props => props.selected ? '#3395FF' : '#f4f4f4'};
+  color: ${props => props.selected ? '#FFFFFF' : '#171f26'};
   border-radius: 4px;
   font-weight: ${props => props.selected ? '700' : '400'};
   transition: all 0.3s ease;
@@ -329,7 +330,9 @@ const TimeDisplay = styled.div`
   align-items: center;
   gap: 10px;
   padding: 10px;
-  border: 1px solid ${theme.colors.border};
+  border: 1px solid #171f26;
+  height: 50px;
+  font-size: 18px;
   border-radius: 4px;
   cursor: pointer;
   background-color: transparent;
@@ -346,9 +349,8 @@ const DropdownContainer = styled.div`
   display: flex;
   background-color: #FFFFFF;
   width: 100%;
-  border: 1px solid ${theme.colors.border};
+  border: 1px solid #171f26;
   border-radius: 4px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   z-index: 10;
 `;
 

@@ -21,12 +21,12 @@ const theme = {
       reservationComplete: "#22CB60",
       buttonPrimary: {
         text: "#FFFFFF",
-        background: "#03222A"
+        background: "#171f26"
       },
       buttonSecondary: {
-        text: "#03222A",
+        text: "#171f26",
         background: "#FFFFFF",
-        border: "#03222A"
+        border: "#171f26"
       },
       buttonTertiary: {
         text: "#FFFFFF",

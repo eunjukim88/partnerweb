@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import RoomCard from '../../components/rooms/RoomCard';
 import RoomList from '../../components/rooms/RoomList';
 import theme from '../../styles/theme';
+import RootLayout from '../../core/App';
 
 const RoomsPage = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -58,6 +59,7 @@ const RoomsPage = () => {
     };
 
     return (
+        <RootLayout>
         <PageContent>
         <HeaderWrapper>
           <Title>객실 관리 현황</Title>
@@ -116,6 +118,7 @@ const RoomsPage = () => {
           <RoomList rooms={filteredRooms} onEditRoom={handleEditRoom} />
         )}
       </PageContent>
+    </RootLayout>
     );
 };
 
