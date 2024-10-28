@@ -17,13 +17,16 @@ export default async function handler(req, res) {
       const result = await sql`
         UPDATE rooms 
         SET 
-          floor = ${floor || ''},
-          building = ${building || ''},
-          name = ${name || ''},
-          type = ${type || ''},
+          floor = ${floor || null},
+          building = ${building || null},
+          name = ${name || null},
+          type = ${type || null},
           display = ${JSON.stringify(display || {})},
           sales_limit = ${JSON.stringify(salesLimit || {})},
-          room_settings = ${JSON.stringify(roomSettings || {})}::jsonb
+          room_settings = ${JSON.stringify(roomSettings || {})}::jsonb,
+          hourly_rate = ${req.body.hourlyRate || 0},
+          nightly_rate = ${req.body.nightlyRate || 0},
+          updated_at = CURRENT_TIMESTAMP
         WHERE number = ${number}
         RETURNING *
       `;

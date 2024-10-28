@@ -25,12 +25,6 @@ yarn-error.log*
 *.temp      # 모든 .temp 파일 무시
 *.cache     # 모든 .cache 파일 무시
 
-# local env files
-.env*.local
-
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
