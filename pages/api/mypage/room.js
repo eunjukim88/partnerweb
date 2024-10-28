@@ -10,14 +10,9 @@ export default async function handler(req, res) {
         name,
         type,
         display,
-        salesLimit
+        salesLimit,
+        roomSettings // 새로운 필드
       } = req.body;
-
-      console.log('업데이트할 데이터:', {
-        number, floor, building, name, type,
-        display: JSON.stringify(display),
-        salesLimit: JSON.stringify(salesLimit)
-      });
 
       const result = await sql`
         UPDATE rooms 
@@ -27,28 +22,19 @@ export default async function handler(req, res) {
           name = ${name || ''},
           type = ${type || ''},
           display = ${JSON.stringify(display || {})},
-          sales_limit = ${JSON.stringify(salesLimit || {})}
+          sales_limit = ${JSON.stringify(salesLimit || {})},
+          room_settings = ${JSON.stringify(roomSettings || {})}::jsonb
         WHERE number = ${number}
         RETURNING *
       `;
 
       if (result.rowCount === 0) {
-        return res.status(404).json({ 
-          message: '객실을 찾을 수 없습니다.',
-          number: number 
-        });
+        return res.status(404).json({ message: '객실을 찾을 수 없습니다.' });
       }
 
-      res.status(200).json({ 
-        message: '객실 정보가 성공적으로 업데이트되었습니다.',
-        data: result.rows[0]
-      });
+      res.status(200).json(result.rows[0]);
     } catch (error) {
-      console.error('객실 정보 업데이트 중 오류 발생:', error);
-      res.status(500).json({ 
-        message: '서버 오류가 발생했습니다.',
-        error: error.message
-      });
+      res.status(500).json({ error: '업데이트 실패' });
     }
   } else if (req.method === 'GET') {
     try {

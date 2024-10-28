@@ -3,11 +3,15 @@ import styled from 'styled-components';
 import { FaClock } from 'react-icons/fa';
 import theme from '../../styles/theme';
 import { Button, Input } from '../common/FormComponents';
+import axios from 'axios';
 
 // 커스텀 시간 선택 컴포넌트
-const TimeSelector = ({ value, onChange }) => {
+const TimeSelector = ({ value, onChange, disabled }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef();
+
+  // 10분 단위 배열 생성
+  const minuteOptions = Array.from({ length: 6 }, (_, i) => (i * 10).toString().padStart(2, '0'));
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -22,32 +26,35 @@ const TimeSelector = ({ value, onChange }) => {
   }, [ref]);
 
   const handleSelect = (type, newValue) => {
-    const [period, hour, minute] = value.split(':');
-    let updatedHour = parseInt(hour);
-    let updatedPeriod = period;
+    if (disabled) return;
 
-    if (type === 'period') {
-      updatedPeriod = newValue;
-      if (newValue === '오후' && updatedHour !== 12) {
-        updatedHour += 12;
-      } else if (newValue === '오전' && updatedHour === 12) {
-        updatedHour = 0;
-      }
-    } else if (type === 'hour') {
-      updatedHour = parseInt(newValue);
-      if (period === '오후' && updatedHour !== 12) {
-        updatedHour += 12;
-      }
+    const [period, timeStr] = value.split(':');
+    const [hour, minute] = timeStr.split(':');
+    
+    let updatedPeriod = period;
+    let updatedHour = parseInt(hour);
+    let updatedMinute = minute;
+
+    switch (type) {
+      case 'period':
+        updatedPeriod = newValue;
+        break;
+      case 'hour':
+        updatedHour = parseInt(newValue);
+        updatedMinute = '00'; // 시간 선택 시 자동으로 00분 설정
+        break;
+      case 'minute':
+        updatedMinute = newValue;
+        break;
     }
 
-    const newTime = `${updatedPeriod}:${updatedHour.toString().padStart(2, '0')}:${type === 'minute' ? newValue : minute}`;
+    const newTime = `${updatedPeriod}:${updatedHour.toString().padStart(2, '0')}:${updatedMinute}`;
     onChange(newTime);
-    // 여기서 setIsOpen(false)를 제거합니다.
   };
 
   return (
     <TimeSelectorContainer ref={ref}>
-      <TimeDisplay onClick={() => setIsOpen(!isOpen)}>
+      <TimeDisplay onClick={() => !disabled && setIsOpen(!isOpen)}>
         <FaClock />
         <span>{value}</span>
       </TimeDisplay>
@@ -55,21 +62,33 @@ const TimeSelector = ({ value, onChange }) => {
         <DropdownContainer>
           <DropdownColumn>
             {['오전', '오후'].map((p) => (
-              <DropdownItem key={p} onClick={() => handleSelect('period', p)} selected={p === value.split(':')[0]}>
+              <DropdownItem 
+                key={p} 
+                onClick={() => handleSelect('period', p)} 
+                selected={p === value.split(':')[0]}
+              >
                 {p}
               </DropdownItem>
             ))}
           </DropdownColumn>
           <DropdownColumn>
             {Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0')).map((h) => (
-              <DropdownItem key={h} onClick={() => handleSelect('hour', h)} selected={h === value.split(':')[1]}>
+              <DropdownItem 
+                key={h} 
+                onClick={() => handleSelect('hour', h)} 
+                selected={h === value.split(':')[1]}
+              >
                 {h}
               </DropdownItem>
             ))}
           </DropdownColumn>
           <DropdownColumn>
-            {Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0')).map((m) => (
-              <DropdownItem key={m} onClick={() => handleSelect('minute', m)} selected={m === value.split(':')[2]}>
+            {minuteOptions.map((m) => (
+              <DropdownItem 
+                key={m} 
+                onClick={() => handleSelect('minute', m)} 
+                selected={m === value.split(':')[2]}
+              >
                 {m}
               </DropdownItem>
             ))}
@@ -80,30 +99,117 @@ const TimeSelector = ({ value, onChange }) => {
   );
 };
 
-const SettingForm = ({ type, settings, onSettingsChange }) => {
-  const toggleDaySelection = (day) => {
-    const updatedDays = settings.selectedDays.includes(day)
-      ? settings.selectedDays.filter(d => d !== day)
-      : [...settings.selectedDays, day];
-    onSettingsChange({ ...settings, selectedDays: updatedDays });
+const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEdit }) => {
+  console.log('SettingForm render:', { type, settings, isEditing });
+
+  const handleDaySelect = (day) => {
+    if (!isEditing) {
+      console.log('Day selection blocked: not in edit mode');
+      return;
+    }
+
+    const currentDays = settings.selectedDays || [];
+    const newDays = currentDays.includes(day)
+      ? currentDays.filter(d => d !== day)
+      : [...currentDays, day].sort((a, b) => {
+          const order = ['월', '화', '수', '목', '금', '토', '일'];
+          return order.indexOf(a) - order.indexOf(b);
+        });
+
+    console.log('Day selection:', {
+      day,
+      currentDays,
+      newDays,
+      isEditing
+    });
+
+    onSettingsChange({
+      ...settings,
+      selectedDays: newDays
+    });
   };
 
-  const handlePriceChange = (priceType) => (e) => {
-    const numericValue = e.target.value.replace(/[^0-9]/g, '');
-    const formattedPrice = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    onSettingsChange({ ...settings, [priceType]: formattedPrice });
+  const handlePriceChange = (field) => (e) => {
+    let value = e.target.value;
+    
+    // 숫자만 추출
+    const numericValue = value.replace(/[^\d]/g, '');
+    
+    // 숫자가 있는 경우에만 포맷팅
+    if (numericValue) {
+      // 천단위 콤마 추가
+      value = Number(numericValue).toLocaleString('ko-KR');
+    } else {
+      value = '';
+    }
+
+    onSettingsChange({
+      ...settings,
+      [field]: value
+    });
+  };
+
+  // 요일 선택 여부에 따른 가격 입력 활성화 상태 계산
+  const isWeekdayEnabled = ['월', '화', '수', '목'].some(day => settings.selectedDays.includes(day));
+  const isFridayEnabled = settings.selectedDays.includes('금');
+  const isWeekendEnabled = settings.selectedDays.includes('토') || settings.selectedDays.includes('일');
+
+  // 요일 선택 상태에 따라 가격 자동 설정
+  useEffect(() => {
+    const newSettings = { ...settings };
+    if (!isWeekdayEnabled) newSettings.weekdayPrice = '0';
+    if (!isFridayEnabled) newSettings.fridayPrice = '0';
+    if (!isWeekendEnabled) newSettings.weekendPrice = '0';
+    onSettingsChange(newSettings);
+  }, [settings.selectedDays]);
+
+  const validateSettings = () => {
+    // 선택된 요일에 대한 요금 검증
+    if (isWeekdayEnabled && parseInt(settings.weekdayPrice.replace(/,/g, '')) === 0) {
+      alert('평일(월~목) 이용금액을 작성해주세요.');
+      return false;
+    }
+    
+    if (isFridayEnabled && parseInt(settings.fridayPrice.replace(/,/g, '')) === 0) {
+      alert('금요일 이용금액을 작성해주세요.');
+      return false;
+    }
+    
+    if (isWeekendEnabled && parseInt(settings.weekendPrice.replace(/,/g, '')) === 0) {
+      alert('주말 이용금액을 작성해주세요.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSaveClick = async () => {
+    if (!validateSettings()) {
+      return;
+    }
+
+    try {
+      await onSave();
+      // 저장 성공 시 알림 제거 (기존 API에서 이미 알림을 보여주므로)
+    } catch (error) {
+      console.error('설정 저장 실패:', error);
+      alert('설정 저장에 실패했습니다.');
+    }
   };
 
   return (
-    <>
+    <SettingsContainer>
       <Section>
-        <SectionTitle>{type} 예약 가능 요일</SectionTitle>
+        <SectionTitle>예약 가능 요일</SectionTitle>
         <DayContainer>
-          {['월', '화', '수', '목', '금', '토', '일'].map(day => (
+          {['월', '화', '수', '목', '금', '토', '일'].map((day) => (
             <DayButton
               key={day}
-              selected={settings.selectedDays.includes(day)}
-              onClick={() => toggleDaySelection(day)}
+              type="button"
+              onClick={() => handleDaySelect(day)}
+              selected={settings.selectedDays?.includes(day)}
+              disabled={!isEditing}
+              isEditing={isEditing}
             >
               {day}
             </DayButton>
@@ -117,23 +223,24 @@ const SettingForm = ({ type, settings, onSettingsChange }) => {
           <InputGroup>
             <Label>체크인</Label>
             <TimeSelector 
-              value={settings.checkInTime} 
-              onChange={(time) => onSettingsChange({ ...settings, checkInTime: time
-               })} 
+              value={settings.checkInTime}
+              onChange={(time) => isEditing && onSettingsChange({ ...settings, checkInTime: time })}
+              disabled={!isEditing}
             />
           </InputGroup>
           <InputGroup>
             <Label>체크아웃</Label>
             <TimeSelector 
-              value={settings.checkOutTime} 
-              onChange={(time) => onSettingsChange({ ...settings, checkOutTime: time })} 
+              value={settings.checkOutTime}
+              onChange={(time) => isEditing && onSettingsChange({ ...settings, checkOutTime: time })}
+              disabled={!isEditing}
             />
           </InputGroup>
         </TimeContainer>
       </Section>
 
       <Section>
-        <SectionTitle>{type} 기본 요금 설정</SectionTitle>
+        <SectionTitle>{type} 요금 설정</SectionTitle>
         <PriceContainer>
           <InputGroup>
             <Label>평일 요금</Label>
@@ -142,11 +249,12 @@ const SettingForm = ({ type, settings, onSettingsChange }) => {
                 type="text"
                 value={settings.weekdayPrice}
                 onChange={handlePriceChange('weekdayPrice')}
-                placeholder="0"
+                disabled={!isEditing || !isWeekdayEnabled}
               />
-              {settings.weekdayPrice && <PriceUnit>원</PriceUnit>}
+              <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
           </InputGroup>
+
           <InputGroup>
             <Label>금요일 요금</Label>
             <PriceInputWrapper>
@@ -154,11 +262,12 @@ const SettingForm = ({ type, settings, onSettingsChange }) => {
                 type="text"
                 value={settings.fridayPrice}
                 onChange={handlePriceChange('fridayPrice')}
-                placeholder="0"
+                disabled={!isEditing || !isFridayEnabled}
               />
-              {settings.fridayPrice && <PriceUnit>원</PriceUnit>}
+              <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
           </InputGroup>
+
           <InputGroup>
             <Label>주말 요금</Label>
             <PriceInputWrapper>
@@ -166,67 +275,187 @@ const SettingForm = ({ type, settings, onSettingsChange }) => {
                 type="text"
                 value={settings.weekendPrice}
                 onChange={handlePriceChange('weekendPrice')}
-                placeholder="0"
+                disabled={!isEditing || !isWeekendEnabled}
               />
-              {settings.weekendPrice && <PriceUnit>원</PriceUnit>}
+              <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
           </InputGroup>
         </PriceContainer>
       </Section>
-    </>
+
+      <ButtonContainer>
+        {isEditing ? (
+          <SaveButton onClick={handleSaveClick}>저장하기</SaveButton>
+        ) : (
+          <EditButton onClick={() => onEdit(type)}>수정하기</EditButton>
+        )}
+      </ButtonContainer>
+    </SettingsContainer>
   );
 };
 
 const ReservationSettings = () => {
-  const [activeTab, setActiveTab] = useState('대실설정');
-  const [daesilSettings, setDaesilSettings] = useState({
-    selectedDays: [],
-    checkInTime: '오전:09:00',
-    checkOutTime: '오후:06:00',
-    weekdayPrice: '',
-    fridayPrice: '',
-    weekendPrice: ''
-  });
-  const [sukbakSettings, setSukbakSettings] = useState({
-    selectedDays: [],
-    checkInTime: '오후:03:00',
-    checkOutTime: '오전:11:00',
-    weekdayPrice: '',
-    fridayPrice: '',
-    weekendPrice: ''
-  });
-  const [janggiSettings, setJanggiSettings] = useState({
-    selectedDays: [],
-    checkInTime: '오후:03:00',
-    checkOutTime: '오전:11:00',
-    weekdayPrice: '',
-    fridayPrice: '',
-    weekendPrice: ''
+  const [activeTab, setActiveTab] = useState('대실');
+  const [editingType, setEditingType] = useState(null);
+  
+  // stayTypeMap을 컴포넌트 내부에서 정의
+  const stayTypeMap = {
+    '대실': 'hourly',
+    '숙박': 'nightly',
+    '장기': 'longTerm'
+  };
+
+  const [settings, setSettings] = useState({
+    hourly: {
+      selectedDays: [],
+      checkInTime: '오전:09:00',
+      checkOutTime: '오후:06:00',
+      weekdayPrice: '0',
+      fridayPrice: '0',
+      weekendPrice: '0'
+    },
+    nightly: {
+      selectedDays: [],
+      checkInTime: '오후:03:00',
+      checkOutTime: '오전:11:00',
+      weekdayPrice: '0',
+      fridayPrice: '0',
+      weekendPrice: '0'
+    },
+    longTerm: {
+      selectedDays: [],
+      checkInTime: '오후:03:00',
+      checkOutTime: '오전:11:00',
+      weekdayPrice: '0',
+      fridayPrice: '0',
+      weekendPrice: '0'
+    }
   });
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case '대실설정':
-        return <SettingForm type="대실" settings={daesilSettings} onSettingsChange={setDaesilSettings} />;
-      case '숙박설정':
-        return <SettingForm type="숙박" settings={sukbakSettings} onSettingsChange={setSukbakSettings} />;
-      case '장기설정':
-        return <SettingForm type="장기" settings={janggiSettings} onSettingsChange={setJanggiSettings} />;
-      default:
-        return null;
+  // 설정 데이터 로딩
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await axios.get('/api/mypage/reservation-settings');
+        if (response.data) {
+          const formattedSettings = {};
+          
+          response.data.forEach(item => {
+            const dayMap = {1:'월', 2:'화', 3:'수', 4:'목', 5:'금', 6:'토', 7:'일'};
+            formattedSettings[item.stay_type] = {
+              selectedDays: item.available_days.map(day => dayMap[day]),
+              checkInTime: formatTimeToAmPm(item.check_in_time),
+              checkOutTime: formatTimeToAmPm(item.check_out_time),
+              weekdayPrice: item.base_rate.weekday.toLocaleString(),
+              fridayPrice: item.base_rate.friday.toLocaleString(),
+              weekendPrice: item.base_rate.weekend.toLocaleString()
+            };
+          });
+          
+          console.log('Loaded settings:', formattedSettings);
+          setSettings(prev => ({
+            ...prev,
+            ...formattedSettings
+          }));
+        }
+      } catch (error) {
+        console.error('설정 로딩 실패:', error);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const handleSave = async (type) => {
+    try {
+      const stayTypeMap = {
+        '대실': 'hourly',
+        '숙박': 'nightly',
+        '장기': 'longTerm'
+      };
+
+      const stayType = stayTypeMap[type];
+      console.log('Saving type:', type);
+      console.log('Mapped stayType:', stayType);
+      console.log('Current settings:', settings);
+
+      if (!settings[stayType]) {
+        console.error('Settings not found for type:', stayType);
+        alert('설정 데이터가 올바르지 않습니다.');
+        return;
+      }
+
+      const currentSettings = settings[stayType];
+      
+      const formattedSettings = {
+        selectedDays: currentSettings.selectedDays,
+        checkInTime: currentSettings.checkInTime,
+        checkOutTime: currentSettings.checkOutTime,
+        base_rate: {
+          weekday: parseInt(currentSettings.weekdayPrice.replace(/,/g, '') || '0'),
+          friday: parseInt(currentSettings.fridayPrice.replace(/,/g, '') || '0'),
+          weekend: parseInt(currentSettings.weekendPrice.replace(/,/g, '') || '0')
+        }
+      };
+
+      console.log('Formatted settings for save:', formattedSettings);
+
+      const response = await axios.put('/api/mypage/reservation-settings', {
+        stayType,
+        settings: formattedSettings
+      });
+
+      if (response.status === 200) {
+        setEditingType(null);
+        alert('설정이 저장되었습니다.');
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('설정 저장에 실패했습니다. 다시 시도해주세요.');
     }
+  };
+
+  // 수정 모드 설정
+  const handleEdit = (type) => {
+    console.log('Edit mode activated for:', type);
+    setEditingType(type);
+  };
+
+  // 설정 변경 처리
+  const handleSettingsChange = (type, newSettings) => {
+    const mappedType = stayTypeMap[type];
+    console.log('Updating settings:', { type, mappedType, newSettings });
+
+    setSettings(prev => {
+      const updated = {
+        ...prev,
+        [mappedType]: {
+          ...prev[mappedType],
+          ...newSettings
+        }
+      };
+      console.log('Updated settings:', updated);
+      return updated;
+    });
   };
 
   return (
     <Container>
       <TabContainer>
-        {['대실설정', '숙박설정', '장기설정'].map(tab => (
+        {['대실', '숙박', '장기'].map(tab => (
           <Tab key={tab} active={activeTab === tab} onClick={() => setActiveTab(tab)}>
             {tab}
           </Tab>
         ))}
       </TabContainer>
-      {renderTabContent()}
+      <SettingForm
+        type={activeTab}
+        settings={settings[stayTypeMap[activeTab]]}
+        onSettingsChange={(newSettings) => handleSettingsChange(activeTab, newSettings)}
+        onSave={() => handleSave(activeTab)}
+        isEditing={editingType === activeTab}
+        onEdit={handleEdit}
+      />
     </Container>
   );
 };
@@ -277,22 +506,30 @@ const SectionTitle = styled.h3`
 `;
 const DayContainer = styled.div`
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  gap: 15px;
+  gap: 10px;
+  margin: 15px 0;
 `;
 
-const DayButton = styled(Button)`
-  width: 80px;
-  height: 40px;
-  background-color: ${props => props.selected ? '#3395FF' : '#f4f4f4'};
-  color: ${props => props.selected ? '#FFFFFF' : '#171f26'};
+const DayButton = styled.button`
+  padding: 10px 15px;
+  border: 2px solid ${props => props.selected ? theme.colors.primary : '#ddd'};
   border-radius: 4px;
-  font-weight: ${props => props.selected ? '700' : '400'};
-  transition: all 0.3s ease;
+  background-color: ${props => props.selected ? theme.colors.primary : 'white'};
+  color: ${props => props.selected ? 'white' : 'black'};
+  cursor: ${props => !props.isEditing ? 'not-allowed' : 'pointer'};
+  opacity: ${props => !props.isEditing ? 0.7 : 1};
+  transition: all 0.2s ease;
 
   &:hover {
-    background-color: ${props => props.selected ? '#3395FF' : '#E6F0FF'};
+    background-color: ${props => 
+      props.isEditing 
+        ? (props.selected ? theme.colors.primaryDark : '#f5f5f5')
+        : props.selected ? theme.colors.primary : 'white'
+    };
+  }
+
+  &:active {
+    transform: ${props => props.isEditing && 'scale(0.98)'};
   }
 `;
 
@@ -383,17 +620,18 @@ const PriceInputWrapper = styled.div`
   width: 100%;
 `;
 
-const StyledInput = styled(Input)`
+const StyledInput = styled.input`
   width: 100%;
-  padding: 10px;
-  padding-right: 30px; // '원' 표시를 위한 공간
-  border: 1px solid ${theme.colors.border};
+  padding: 8px 12px;
+  border: 1px solid #ddd;
   border-radius: 4px;
-  background-color: #FFFFFF;
-  text-align: right;
+  font-size: 14px;
+  background-color: ${props => props.disabled ? '#f5f5f5' : '#fff'};
+  cursor: ${props => props.disabled ? 'not-allowed' : 'text'};
 
-  &:hover {
-    background-color: #E6F0FF;
+  &:focus {
+    outline: none;
+    border-color: ${theme.colors.primary};
   }
 `;
 
@@ -404,3 +642,47 @@ const PriceUnit = styled.span`
   transform: translateY(-50%);
   color: ${theme.colors.text};
 `;
+
+const SettingsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+`;
+
+const ButtonContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+`;
+
+const SaveButton = styled(Button)`
+  padding: 10px 30px;
+  background-color: ${theme.colors.primary};
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  width: 120px;
+
+  &:hover {
+    background-color: ${theme.colors.primaryDark};
+  }
+`;
+
+const EditButton = styled(Button)`
+  padding: 10px 30px;
+  background-color: ${theme.colors.secondary};
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  width: 120px;
+
+  &:hover {
+    background-color: ${theme.colors.secondaryDark};
+  }
+`;
+
