@@ -2,17 +2,20 @@ import React from 'react'; // React 라이브러리 임포트
 import { BiWifi, BiWifi2, BiWifi1, BiWifiOff } from 'react-icons/bi'; // Wi-Fi 아이콘 임포트
 import styled from 'styled-components'; // styled-components 임포트
 
-const WifiIcon = ({ strength }) => { // WifiIcon 컴포넌트 정의, strength를 props로 받음
+const WifiIcon = () => { // WifiIcon 컴포넌트 정의
+  // 0-4 사이의 랜덤한 Wi-Fi 강도 생성
+  const randomStrength = Math.floor(Math.random() * 5);
+  
   let Icon; // 사용할 아이콘을 저장할 변수
   let status; // Wi-Fi 상태 텍스트를 저장할 변수
 
-  if (strength === 4) { // strength가 4인 경우
+  if (randomStrength === 4) { // strength가 4인 경우
     Icon = BiWifi; // BiWifi 아이콘 사용
     status = '양호'; // 상태 텍스트 설정
-  } else if (strength === 3) { // strength가 3인 경우
+  } else if (randomStrength === 3) { // strength가 3인 경우
     Icon = BiWifi2; // BiWifi2 아이콘 사용
     status = '양호'; // 상태 텍스트 설정
-  } else if (strength === 2) { // strength가 2인 경우
+  } else if (randomStrength === 2) { // strength가 2인 경우
     Icon = BiWifi1; // BiWifi1 아이콘 사용
     status = '약함'; // 상태 텍스트 설정
   } else { // 그 외의 경우

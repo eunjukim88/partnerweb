@@ -8,33 +8,36 @@ import WifiIcon from '../WifiIcon'; // WifiIcon 컴포넌트 임포트
 import { fetchWifiStrength } from '../../../pages/api/rooms'; // Wi-Fi 강도 조회 API 함수 임포트
 import theme from '../../styles/theme'; // 테마 설정 임포트
 
+// RoomCard.js 상단에 추가
+const generateRandomCardStatus = () => {
+  return Math.random() > 0.5;
+};
+
+const generateRandomStatus = () => {
+  const statuses = [
+    '장기', '숙박', '판매중지', '청소완료',
+    '점검중', '점검완료', '청소요청',
+    '대실', '청소중', '공실', '예약완료',
+    '점검요청'
+  ];
+  return statuses[Math.floor(Math.random() * statuses.length)];
+};
+
 const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 받음
-  const [wifiStrength, setWifiStrength] = useState(0); // Wi-Fi 강도를 저장하는 상태 변수
-  const [delayTime, setDelayTime] = useState(room.delay || 0); // 지연 시간을 저장하는 상태 변수, 기본값은 room.delay 또는 0
+  const [mainCard, setMainCard] = useState(generateRandomCardStatus());
+  const [subCard, setSubCard] = useState(generateRandomCardStatus());
 
-  useEffect(() => { // 컴포넌트가 마운트되거나 room.id, room.delay가 변경될 때 실행
-    const updateWifiStrength = async () => { // Wi-Fi 강도를 업데이트하는 비동기 함수
-      const strength = await fetchWifiStrength(room.id); // Wi-Fi 강도 데이터를 API에서 가져옴
-      setWifiStrength(strength); // 가져온 Wi-Fi 강도를 상태에 저장
-    };
+  // 30초마다 랜덤하게 카드 상태만 변경
+  useEffect(() => {
+    const statusInterval = setInterval(() => {
+      setMainCard(generateRandomCardStatus());
+      setSubCard(generateRandomCardStatus());
+    }, 30000);
 
-    updateWifiStrength(); // 초기 Wi-Fi 강도 업데이트 호출
-    const wifiInterval = setInterval(updateWifiStrength, 5000); // 5초마다 Wi-Fi 강도 업데이트
+    return () => clearInterval(statusInterval);
+  }, []);
 
-    // 지연 시간 카운팅
-    const delayInterval = setInterval(() => { // 지연 시간을 카운트하는 인터벌 설정
-      if (room.delay) { // room.delay가 존재할 경우
-        setDelayTime(prevTime => prevTime + 1); // 지연 시간을 1분씩 증가
-      }
-    }, 60000); // 1분마다 업데이트
-
-    return () => { // 컴포넌트가 언마운트될 때 인터벌 클리어
-      clearInterval(wifiInterval); // Wi-Fi 강도 업데이트 인터벌 클리어
-      clearInterval(delayInterval); // 지연 시간 카운트 인터벌 클리어
-    };
-  }, [room.id, room.delay]); // 의존성 배열: room.id와 room.delay가 변경될 때마다 useEffect 실행
-
-  const needsCardAlert = !room.mainCard && !room.subCard; // 메인 카드와 서브 카드가 모두 없을 경우 경고 필요
+  const needsCardAlert = !mainCard && !subCard; // 메인 카드와 서브 카드가 모두 없을 경우 경고 필요
 
   const formatDelayTime = (minutes) => { // 지연 시간을 "HH:MM" 형식으로 변환하는 함수
     const hours = Math.floor(minutes / 60); // 시간 계산
@@ -46,19 +49,19 @@ const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 �
     const activeStatuses = ['longStay', 'overnightStay', 'hourlyStay', 'reservationComplete', 'cleaningRequested']; // 활성 상태 목록
     if (activeStatuses.includes(room.status)) { // room.status가 활성 상태 목록에 포함되는지 확인
       if (room.checkInStatus) { // 체크인 상태가 존재할 경우
-        if (delayTime > 0) { // 지연 시간이 있을 경우
+        if (room.delay > 0) { // 지연 시간이 있을 경우
           return (
             <>
-              체크인 | <DelayText>{formatDelayTime(delayTime)} 지연</DelayText> {/* 지연 시간 표시 */}
+              체크인 | <DelayText>{formatDelayTime(room.delay)} 지연</DelayText> {/* 지연 시간 표시 */}
             </>
           );
         }
         return `체크인 | ${room.checkInStatus}`; // 체크인 상태 표시
       } else if (room.checkOutStatus) { // 체크아웃 상태가 존재할 경우
-        if (delayTime > 0) { // 지연 시간이 있을 경우
+        if (room.delay > 0) { // 지연 시간이 있을 경우
           return (
             <>
-              체크아웃 | <DelayText>{formatDelayTime(delayTime)} 지연</DelayText> {/* 지연 시간 표시 */}
+              체크아웃 | <DelayText>{formatDelayTime(room.delay)} 지연</DelayText> {/* 지연 시간 표시 */}
             </>
           );
         }
@@ -74,10 +77,10 @@ const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 �
     <CardContainer status={room.status}> {/* 상태에 따라 스타일이 변경되는 카드 컨테이너 */}
       <RoomHeader> {/* 방 헤더 섹션 */}
         <RoomInfo> {/* 방 정보 섹션 */}
-          <RoomNumber>{room.number}호</RoomNumber> {/* 방 번호 표시 */}
+          <RoomNumber>{room.building}{room.floor}{room.number}호</RoomNumber> {/* 방 번호 표시 */}
           <RoomName>{room.name}</RoomName> {/* 방 이름 표시 */}
         </RoomInfo>
-        {room.hasWifi && <WifiIcon strength={wifiStrength} />} {/* Wi-Fi가 있는 경우 Wi-Fi 아이콘 표시 */}
+        <WifiIcon /> {/* Wi-Fi가 있는 경우 Wi-Fi 아이콘 표시 */}
       </RoomHeader>
       <StatusSection> {/* 상태 섹션 */}
         <CheckInStatus>
@@ -101,14 +104,14 @@ const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 �
             <>
               <CardIconWrapper> {/* 메인 카드 아이콘 래퍼 */}
                 <CardLabel>M</CardLabel> {/* 메인 카드 라벨 */}
-                <CardIcon active={room.mainCard}> {/* 메인 카드 활성 상태에 따른 아이콘 */}
-                  {room.mainCard ? <MdCreditCard /> : <MdCreditCardOff />} {/* 메인 카드 상태에 따라 아이콘 변경 */}
+                <CardIcon active={mainCard}> {/* 메인 카드 활성 상태에 따른 아이콘 */}
+                  {mainCard ? <MdCreditCard /> : <MdCreditCardOff />} {/* 메인 카드 상태에 따라 아이콘 변경 */}
                 </CardIcon>
               </CardIconWrapper>
               <CardIconWrapper> {/* 서브 카드 아이콘 래퍼 */}
                 <CardLabel>S</CardLabel> {/* 서브 카드 라벨 */}
-                <CardIcon active={room.subCard}> {/* 서브 카드 활성 상태에 따른 아이콘 */}
-                  {room.subCard ? <MdCreditCard /> : <MdCreditCardOff />} {/* 서브 카드 상태에 따라 아이콘 변경 */}
+                <CardIcon active={subCard}> {/* 서브 카드 활성 상태에 따른 아이콘 */}
+                  {subCard ? <MdCreditCard /> : <MdCreditCardOff />} {/* 서브 카드 상태에 따라 아이콘 변경 */}
                 </CardIcon>
               </CardIconWrapper>
             </>
