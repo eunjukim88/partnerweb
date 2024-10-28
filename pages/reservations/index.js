@@ -16,9 +16,10 @@ const ReservationsPage = () => {
       try {
         const response = await fetch('/api/reservations');
         const data = await response.json();
-        setReservations(data);
+        setReservations(data.reservations || []); // reservations 속성에 접근하고 기본값 설정
       } catch (error) {
         console.error('Error fetching reservations:', error);
+        setReservations([]); // 에러 시 빈 배열로 초기화
       }
     };
 

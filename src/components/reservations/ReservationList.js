@@ -5,7 +5,25 @@ import theme from '../../styles/theme';
 import ReservationModal from './ReservationModal';
 import { Button, Select, Input, Pagination } from '../common/FormComponents';
 
-const ReservationList = ({ reservations, setReservations, bookingSources, stayTypes }) => {
+// 예약 경로 상수
+const BOOKING_SOURCES = [
+  '직접예약',
+  '에어비앤비',
+  '야놀자',
+  '여기어때',
+  '부킹닷컴',
+  '아고다',
+  '기타'
+];
+
+// 숙박 유형 상수
+const STAY_TYPES = [
+  '대실',
+  '숙박',
+  '장기'
+];
+
+const ReservationList = ({ reservations, setReservations }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [startDate, setStartDate] = useState(new Date());
@@ -50,17 +68,24 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
   const handleSaveReservation = async (reservationData) => {
     try {
       const method = selectedReservation ? 'PUT' : 'POST';
-      const response = await fetch('/api/reservations', {
+      const url = '/api/reservations' + (selectedReservation ? `/${selectedReservation.id}` : '');
+      
+      const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reservationData),
       });
-      if (!response.ok) throw new Error('API 요청 실패');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'API 요청 실패');
+      }
+
       await fetchReservations();
       setIsModalOpen(false);
     } catch (error) {
       console.error('예약 저장 중 오류 발생:', error);
-      alert('예약 저장에 실패했습니다. 다시 시도해주세요.');
+      alert(error.message || '예약 저장에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
@@ -82,16 +107,46 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
   };
 
   const handleSearch = () => {
-    const filtered = reservations.filter(res => {
-      const isInDateRange = new Date(res.checkIn) >= startDate && new Date(res.checkOut) <= endDate;
-      const matchesSearchTerm = searchTerm === '' || res[searchType].toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesBookingSource = bookingSource === 'all' || res.bookingSource === bookingSource;
-      const matchesStayType = stayType === 'all' || res.stayType === stayType;
-      return isInDateRange && matchesSearchTerm && matchesBookingSource && matchesStayType;
+    let filtered = [...reservations];
+    
+    // 날짜 필터링
+    filtered = filtered.filter(reservation => {
+      const checkIn = new Date(reservation.check_in);
+      return checkIn >= startDate && checkIn <= endDate;
     });
+
+    // 예약 경로 필터링
+    if (bookingSource !== 'all') {
+      filtered = filtered.filter(r => r.booking_source === bookingSource);
+    }
+
+    // 숙박 유형 필터링
+    if (stayType !== 'all') {
+      filtered = filtered.filter(r => r.stay_type === stayType);
+    }
+
+    // 검색어 필터링
+    if (searchTerm) {
+      filtered = filtered.filter(r => {
+        switch (searchType) {
+          case 'reservationNumber':
+            return r.reservation_number.includes(searchTerm);
+          case 'guestName':
+            return r.guest_name.includes(searchTerm);
+          case 'phone':
+            return r.phone.includes(searchTerm);
+          default:
+            return true;
+        }
+      });
+    }
+
     setTotalFilteredReservations(filtered);
-    const startIdx = (currentPage - 1) * listSize;
-    setFilteredReservations(filtered.slice(startIdx, startIdx + listSize));
+    
+    // 페이지네이션 적용
+    const start = (currentPage - 1) * listSize;
+    const end = start + listSize;
+    setFilteredReservations(filtered.slice(start, end));
   };
 
   const handleFilterChange = (filterType, value) => {
@@ -170,13 +225,13 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
         <ControlGroup>
           <Select value={bookingSource} onChange={(e) => handleFilterChange('bookingSource', e.target.value)}>
             <option value="all">전체 예약경로</option>
-            {bookingSources.map(source => (
+            {BOOKING_SOURCES.map(source => (
               <option key={source} value={source}>{source}</option>
             ))}
           </Select>
           <Select value={stayType} onChange={(e) => handleFilterChange('stayType', e.target.value)}>
             <option value="all">전체 숙박유형</option>
-            {stayTypes.map(type => (
+            {STAY_TYPES.map(type => (
               <option key={type} value={type}>{type}</option>
             ))}
           </Select>
@@ -212,20 +267,22 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
             <th>연락처</th>
             <th>예약경로</th>
             <th>숙박유형</th>
+            <th>상태</th>
             <th>액션</th>
           </tr>
         </thead>
         <tbody>
           {filteredReservations.map(reservation => (
             <tr key={reservation.id}>
-              <TableCell>{reservation.reservationNumber}</TableCell>
-              <TableCell>{reservation.roomNumber}</TableCell>
-              <TableCell>{new Date(reservation.checkIn).toLocaleString()}</TableCell>
-              <TableCell>{new Date(reservation.checkOut).toLocaleString()}</TableCell>
-              <TableCell>{reservation.guestName}</TableCell>
+              <TableCell>{reservation.reservation_number}</TableCell>
+              <TableCell>{reservation.room_number}</TableCell>
+              <TableCell>{new Date(reservation.check_in).toLocaleString()}</TableCell>
+              <TableCell>{new Date(reservation.check_out).toLocaleString()}</TableCell>
+              <TableCell>{reservation.guest_name}</TableCell>
               <TableCell>{reservation.phone}</TableCell>
-              <TableCell>{reservation.bookingSource}</TableCell>
-              <TableCell>{reservation.stayType}</TableCell>
+              <TableCell>{reservation.booking_source}</TableCell>
+              <TableCell>{reservation.stay_type}</TableCell>
+              <TableCell>{reservation.status}</TableCell>
               <TableCell>
                 <ActionButtonGroup>
                   <ActionButton onClick={() => handleOpenModal(reservation)}><FaEdit /></ActionButton>
@@ -239,8 +296,9 @@ const ReservationList = ({ reservations, setReservations, bookingSources, stayTy
 
       <Pagination
         currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={(page) => setCurrentPage(page)}
+        totalItems={totalFilteredReservations.length}
+        itemsPerPage={listSize}
+        onPageChange={setCurrentPage}
       />
 
       {isModalOpen && (

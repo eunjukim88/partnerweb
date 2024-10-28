@@ -1,57 +1,157 @@
+import { sql } from '@vercel/postgres';
 
+export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    try {
+      const { rows } = await sql`
+        SELECT r.*, rm.status as room_status
+        FROM reservations r
+        LEFT JOIN rooms rm ON r.room_number = rm.number
+        ORDER BY r.check_in DESC
+      `;
+      res.status(200).json({ reservations: rows });
+    } catch (error) {
+      res.status(500).json({ error: '예약 조회에 실패했습니다.' });
+    }
+  } else if (req.method === 'POST') {
+    try {
+      const reservationData = req.body;
+      validateReservation(reservationData);
 
-export default function handler(req, res) {
-  const { method } = req;
+      await sql`BEGIN`;
 
-  switch (method) {
-    case 'GET':
-      res.status(200).json({ reservations });
-      break;
-    case 'POST':
-      try {
-        const newReservation = validateReservation({
-          id: Date.now().toString(),
-          ...req.body,
-        });
-        reservations.push(newReservation);
-        res.status(201).json({ message: '예약이 생성되었습니다', data: newReservation });
-      } catch (error) {
-        res.status(400).json({ message: error.message });
-      }
-      break;
-    case 'PUT':
-      try {
-        const updateData = validateReservation(req.body);
-        const index = reservations.findIndex(r => r.id === updateData.id);
-        if (index !== -1) {
-          reservations[index] = { ...reservations[index], ...updateData };
-          res.status(200).json({ message: '예약이 수정되었습니다', data: reservations[index] });
-        } else {
-          res.status(404).json({ message: '예약을 찾을 수 없습니다' });
+      // 예약 정보 저장
+      const result = await sql`
+        INSERT INTO reservations (
+          reservation_number,
+          room_number,
+          guest_name,
+          phone,
+          check_in,
+          check_out,
+          booking_source,
+          stay_type,
+          status,
+          memo
+        ) VALUES (
+          ${reservationData.reservationNumber},
+          ${reservationData.roomNumber},
+          ${reservationData.guestName},
+          ${reservationData.phone},
+          ${reservationData.checkIn},
+          ${reservationData.checkOut},
+          ${reservationData.bookingSource},
+          ${reservationData.stayType},
+          'confirmed',
+          ${reservationData.memo || null}
+        ) RETURNING *
+      `;
+
+      // 객실 상태 업데이트
+      await sql`
+        UPDATE rooms 
+        SET status = ${
+          reservationData.stayType === '대실' ? 'hourlyStay' :
+          reservationData.stayType === '숙박' ? 'overnightStay' : 'longStay'
         }
-      } catch (error) {
-        res.status(400).json({ message: error.message });
-      }
-      break;
-    case 'DELETE':
+        WHERE number = ${reservationData.roomNumber}
+      `;
+
+      await sql`COMMIT`;
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      await sql`ROLLBACK`;
+      res.status(500).json({ error: error.message });
+    }
+  } else if (req.method === 'PUT') {
+    try {
+      const reservationData = req.body;
+      validateReservation(reservationData);
+
+      await sql`BEGIN`;
+
+      const result = await sql`
+        UPDATE reservations 
+        SET 
+          room_number = ${reservationData.roomNumber},
+          guest_name = ${reservationData.guestName},
+          phone = ${reservationData.phone},
+          check_in = ${reservationData.checkIn},
+          check_out = ${reservationData.checkOut},
+          booking_source = ${reservationData.bookingSource},
+          stay_type = ${reservationData.stayType},
+          memo = ${reservationData.memo || null}
+        WHERE id = ${reservationData.id}
+        RETURNING *
+      `;
+
+      // 객실 상태 업데이트
+      await sql`
+        UPDATE rooms 
+        SET status = ${
+          reservationData.stayType === '대실' ? 'hourlyStay' :
+          reservationData.stayType === '숙박' ? 'overnightStay' : 'longStay'
+        }
+        WHERE number = ${reservationData.roomNumber}
+      `;
+
+      await sql`COMMIT`;
+      res.status(200).json(result.rows[0]);
+    } catch (error) {
+      await sql`ROLLBACK`;
+      res.status(500).json({ error: error.message });
+    }
+  } else if (req.method === 'DELETE') {
+    try {
       const { ids } = req.body;
-      const initialLength = reservations.length;
-      reservations = reservations.filter(r => !ids.includes(r.id));
-      if (reservations.length < initialLength) {
-        res.status(200).json({ message: '예약이 삭제되었습니다', deletedIds: ids });
+      
+      await sql`BEGIN`;
+      
+      // 예약 삭제 전 객실 상태 업데이트
+      await sql`
+        UPDATE rooms r
+        SET status = 'vacant'
+        FROM reservations res
+        WHERE r.number = res.room_number
+        AND res.id = ANY(${ids}::uuid[])
+      `;
+      
+      // 예약 삭제
+      const { rowCount } = await sql`
+        DELETE FROM reservations
+        WHERE id = ANY(${ids}::uuid[])
+      `;
+      
+      await sql`COMMIT`;
+      
+      if (rowCount === 0) {
+        res.status(404).json({ message: '삭제할 예약을 찾을 수 없습니다.' });
       } else {
-        res.status(404).json({ message: '삭제할 예약을 찾을 수 없습니다' });
+        res.status(200).json({ message: '예약이 삭제되었습니다.' });
       }
-      break;
-    default:
-      res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-      res.status(405).end(`Method ${method} Not Allowed`);
+    } catch (error) {
+      await sql`ROLLBACK`;
+      res.status(500).json({ error: '예약 삭제에 실패했습니다.' });
+    }
+  } else {
+    res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
 
 function validateReservation(data) {
-  const requiredFields = ['roomNumber', 'checkIn', 'checkOut', 'guestName', 'phone', 'bookingSource', 'stayType'];
-  for (let field of requiredFields) {
+  const requiredFields = [
+    'reservationNumber',
+    'roomNumber',
+    'guestName',
+    'phone',
+    'checkIn',
+    'checkOut',
+    'bookingSource',
+    'stayType'
+  ];
+
+  for (const field of requiredFields) {
     if (!data[field]) {
       throw new Error(`${field} 필드는 필수입니다.`);
     }
@@ -66,10 +166,6 @@ function validateReservation(data) {
   if (checkOut <= checkIn) {
     throw new Error('체크아웃 날짜는 체크인 날짜보다 늦어야 합니다.');
   }
-
-  // ISO 8601 형식으로 날짜 변환
-  data.checkIn = checkIn.toISOString();
-  data.checkOut = checkOut.toISOString();
 
   return data;
 }

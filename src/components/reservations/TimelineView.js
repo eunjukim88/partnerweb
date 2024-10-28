@@ -1,20 +1,46 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import theme from '../../styles/theme';
-import { getReservations } from '../../data/tempData';
 
-const TimelineView = ({ timelineStartDate, onTimelineChange, roomNumbers, stayTypes }) => {
-  const [reservations, setReservations] = useState([]);
+// LoadingSpinner 컴포넌트 추가
+const LoadingSpinner = styled.div`
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+const TimelineView = ({ timelineStartDate, reservations = [] }) => {
   const [currentDate, setCurrentDate] = useState(timelineStartDate || new Date());
   const [isFirstHalf, setIsFirstHalf] = useState(true);
-  const defaultStayTypes = ['숙박', '대실', '장기'];
-  const actualStayTypes = stayTypes || defaultStayTypes;
-  
-  useEffect(() => {
-    setCurrentDate(timelineStartDate);
-    setIsFirstHalf(true);
-  }, [timelineStartDate]);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = async () => {
+    try {
+      const response = await fetch('/api/rooms');
+      const data = await response.json();
+      setRooms(data);
+      setLoading(false);
+    } catch (error) {
+      console.error('객실 정보 조회 실패:', error);
+      setLoading(false);
+    }
+  };
+
+  // 날짜 관련 함수들은 유지
   const getDateRange = (date, isFirstHalf) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -33,40 +59,6 @@ const TimelineView = ({ timelineStartDate, onTimelineChange, roomNumbers, stayTy
 
   const { startDate, endDate } = getDateRange(currentDate, isFirstHalf);
 
-  const handleTimelineChange = (direction) => {
-    let newDate = new Date(currentDate);
-    if (direction === 'next') {
-      if (isFirstHalf) {
-        setIsFirstHalf(false);
-      } else {
-        newDate.setMonth(newDate.getMonth() + 1);
-        setIsFirstHalf(true);
-      }
-    } else {
-      if (isFirstHalf) {
-        newDate.setMonth(newDate.getMonth() - 1);
-        setIsFirstHalf(false);
-      } else {
-        setIsFirstHalf(true);
-      }
-    }
-    setCurrentDate(newDate);
-  };
-
-  const isDateInRange = (date, start, end) => {
-    const d = date.getTime();
-    const s = new Date(start).getTime();
-    const e = new Date(end).getTime();
-    return d >= s && d <= e;
-  };
-
-  const isSameDay = (dateString, date) => {
-    const d1 = new Date(dateString);
-    return d1.getFullYear() === date.getFullYear() &&
-           d1.getMonth() === date.getMonth() &&
-           d1.getDate() === date.getDate();
-  };
-
   return (
     <TimelineContainer>
       <TimelineHeader>
@@ -76,56 +68,70 @@ const TimelineView = ({ timelineStartDate, onTimelineChange, roomNumbers, stayTy
         </DateRange>
         <ArrowButton onClick={() => handleTimelineChange('next')}>&gt;</ArrowButton>
       </TimelineHeader>
-      <TimelineTableWrapper>
-        <TimelineTable>
-          <thead>
-            <tr>
-              <HeaderCell>객실 호수</HeaderCell>
-              <HeaderCell>숙박 유형</HeaderCell>
-              {[...Array(endDate.getDate() - startDate.getDate() + 1)].map((_, index) => {
-                const currentDate = new Date(startDate);
-                currentDate.setDate(currentDate.getDate() + index);
-                return (
-                  <HeaderCell key={index}>
-                    {currentDate.getDate()}일
-                  </HeaderCell>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {roomNumbers.map(roomNumber => (
-              actualStayTypes.map(stayType => (
-                <tr key={`${roomNumber}-${stayType}`}>
-                  {stayType === actualStayTypes[0] && <RoomCell rowSpan={actualStayTypes.length}>{roomNumber}</RoomCell>}
-                  <StayTypeCell>{stayType}</StayTypeCell>
+      {loading ? (
+        <LoadingSpinner />
+      ) : (
+        <TimelineTableWrapper>
+          <TimelineTable>
+            <thead>
+              <tr>
+                <HeaderCell>객실</HeaderCell>
+                {[...Array(endDate.getDate() - startDate.getDate() + 1)].map((_, index) => {
+                  const currentDate = new Date(startDate);
+                  currentDate.setDate(currentDate.getDate() + index);
+                  return (
+                    <HeaderCell key={index}>
+                      {currentDate.getDate()}일
+                    </HeaderCell>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {rooms.map(room => (
+                <tr key={room.id}>
+                  <RoomCell>
+                    {room.number}호
+                    <RoomInfo>
+                      {room.type} / {room.status}
+                    </RoomInfo>
+                  </RoomCell>
                   {[...Array(endDate.getDate() - startDate.getDate() + 1)].map((_, index) => {
                     const currentDate = new Date(startDate);
                     currentDate.setDate(currentDate.getDate() + index);
-                    const reservationsForDay = reservations.filter(res => 
-                      res.roomNumber === roomNumber &&
-                      res.stayType === stayType &&
-                      isDateInRange(currentDate, new Date(res.checkIn), new Date(res.checkOut))
-                    );
-                    
+                    const dayReservations = Array.isArray(reservations) 
+                      ? reservations.filter(r => 
+                          r.room_number === room.number &&
+                          isDateInRange(currentDate, new Date(r.check_in), new Date(r.check_out))
+                        )
+                      : [];
+
                     return (
-                      <TimelineCell key={index}>
-                        {reservationsForDay.map(res => (
+                      <TimelineCell 
+                        key={index}
+                        onClick={() => handleCellClick(room, currentDate)}
+                      >
+                        {dayReservations.map(reservation => (
                           <ReservationBlock
-                            key={res.id}
-                            stayType={res.stayType}
-                            isCheckIn={isSameDay(res.checkIn, currentDate)}
-                            isCheckOut={isSameDay(res.checkOut, currentDate)}
+                            key={reservation.id}
+                            stayType={reservation.stay_type}
+                            isCheckIn={isSameDay(reservation.check_in, currentDate)}
+                            isCheckOut={isSameDay(reservation.check_out, currentDate)}
                           >
-                            {isSameDay(res.checkIn, currentDate) && 'IN'}
-                            {isSameDay(res.checkOut, currentDate) && 'OUT'}
+                            <ReservationInfo>
+                              {reservation.guest_name}
+                              {isSameDay(reservation.check_in, currentDate) && ' (IN)'}
+                              {isSameDay(reservation.check_out, currentDate) && ' (OUT)'}
+                            </ReservationInfo>
                             <ReservationTooltip>
-                              <p>예약번호: {res.id}</p>
-                              <p>예약자명: {res.guestName}</p>
-                              <p>연락처: {res.phoneNumber}</p>
-                              <p>체크인: {new Date(res.checkIn).toLocaleDateString()}</p>
-                              <p>체크아웃: {new Date(res.checkOut).toLocaleDateString()}</p>
-                              <p>숙박 유형: {res.stayType}</p>
+                              <p>예약번호: {reservation.reservation_number}</p>
+                              <p>객실: {reservation.room_number}호</p>
+                              <p>예약자: {reservation.guest_name}</p>
+                              <p>연락처: {reservation.phone}</p>
+                              <p>체크인: {new Date(reservation.check_in).toLocaleString()}</p>
+                              <p>체크아웃: {new Date(reservation.check_out).toLocaleString()}</p>
+                              <p>예약경로: {reservation.booking_source}</p>
+                              <p>숙박유형: {reservation.stay_type}</p>
                             </ReservationTooltip>
                           </ReservationBlock>
                         ))}
@@ -133,14 +139,36 @@ const TimelineView = ({ timelineStartDate, onTimelineChange, roomNumbers, stayTy
                     );
                   })}
                 </tr>
-              ))
-            ))}
-          </tbody>
-        </TimelineTable>
-      </TimelineTableWrapper>
+              ))}
+            </tbody>
+          </TimelineTable>
+        </TimelineTableWrapper>
+      )}
     </TimelineContainer>
   );
 };
+
+// 스타일 컴포넌트 추가
+const RoomCell = styled.td`
+  padding: 8px;
+  border-right: 1px solid #ddd;
+  background: #f5f5f5;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+`;
+
+const RoomInfo = styled.div`
+  font-size: 0.8em;
+  color: #666;
+`;
+
+const ReservationInfo = styled.div`
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
 
 const TimelineContainer = styled.div`
   width: 100%;
@@ -181,18 +209,6 @@ const HeaderCell = styled.th`
   background-color: #f2f2f2;
   text-align: center;
   min-width: 40px;
-`;
-
-const RoomCell = styled.td`
-  padding: 10px;
-  font-weight: bold;
-  text-align: center;
-  vertical-align: middle;
-`;
-
-const StayTypeCell = styled.td`
-  padding: 10px;
-  text-align: center;
 `;
 
 const TimelineCell = styled.td`
