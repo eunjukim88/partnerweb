@@ -5,13 +5,11 @@ import styled from 'styled-components';
 import theme from '../../src/styles/theme';
 
 import UserGuide from '../../src/components/mypage/UserGuide';
-import RoomSettings from '../../src/components/mypage/RoomSettings';
-import ReservationSettings from '../../src/components/mypage/ReservationSettings';
-import RoomEdit from '../../src/components/mypage/RoomEdit';
+import RightSectionContent from '../../src/components/mypage/MyPage';
 
 const MyPage = () => {
   const router = useRouter();
-  const { section = 'user-guide', roomNumber } = router.query;
+  const { section = 'user-guide' } = router.query;
 
   const menuItems = [
     { id: 'user-guide', name: '사용자 안내 설정' },
@@ -19,28 +17,6 @@ const MyPage = () => {
     { id: 'reservation-settings', name: '기본 예약 설정' },
     { id: 'special-date-settings', name: '특정 예약 날짜 설정' },
   ];
-
-  const renderContent = () => {
-    switch (section) {
-      case 'user-guide':
-        return <UserGuide />;
-      case 'room-settings':
-        return <RoomSettings />;
-      case 'room-edit':
-        return <RoomEdit roomNumber={roomNumber} />;
-      case 'reservation-settings':
-        return <ReservationSettings />;
-      case 'special-date-settings':
-        return <div>특정 예약 날짜 설정</div>;
-      default:
-        return <div>잘못된 섹션입니다.</div>;
-    }
-  };
-
-  // URL 변경 시 컴포넌트 리렌더링
-  useEffect(() => {
-    // URL이 변경될 때 필요한 로직을 여기에 추가하세요.
-  }, [router.query]);
 
   return (
     <PageWrapper>
@@ -57,7 +33,9 @@ const MyPage = () => {
             ))}
           </MenuList>
         </LeftSection>
-        <RightSection>{renderContent()}</RightSection>
+        <RightSection>
+          <RightSectionContent />
+        </RightSection>
       </PageContainer>
     </PageWrapper>
   );

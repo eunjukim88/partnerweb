@@ -6,6 +6,7 @@ import RoomCard from '../../src/components/rooms/RoomCard';
 import RoomList from '../../src/components/rooms/RoomList';
 import theme from '../../src/styles/theme';
 import RootLayout from '../../src/core/App';
+import { useRouter } from 'next/router';
 
 const RoomsPage = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -14,6 +15,7 @@ const RoomsPage = () => {
     const [statusFilter, setStatusFilter] = useState('all');
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
+    const router = useRouter();
   
     useEffect(() => {
       const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -55,7 +57,13 @@ const RoomsPage = () => {
     });
 
     const handleEditRoom = (room) => {
-      console.log('Edit room:', room);
+      router.push({
+        pathname: '/mypage',
+        query: { 
+          section: 'room-edit',
+          roomNumber: room.number 
+        }
+      });
     };
 
     return (
