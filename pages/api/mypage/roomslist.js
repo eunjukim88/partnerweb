@@ -3,28 +3,38 @@ import { sql } from '@vercel/postgres';
 console.log('POSTGRES_URL:', process.env.POSTGRES_URL);
 
 export default async function handler(req, res) {
-  switch (req.method) {
-    case 'GET':
-      return getRooms(req, res);
-    case 'POST':
-      return addRoom(req, res);
-    case 'PUT':
-      return updateRoom(req, res);
-    case 'DELETE':
-      return deleteRoom(req, res);
-    default:
-      res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-      res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-}
+  if (req.method === 'GET') {
+    try {
+      const { number } = req.query;
+      
+      // 특정 객실 번호가 있으면 해당 객실 정보만 반환
+      if (number) {
+        const { rows } = await sql`
+          SELECT * FROM rooms 
+          WHERE number = ${number}
+        `;
 
-// 모든 객실 조회
-async function getRooms(req, res) {
-  try {
-    const { rows } = await sql`SELECT * FROM rooms ORDER BY floor, building, number`;
-    res.status(200).json(rows);
-  } catch (error) {
-    res.status(500).json({ error: '객실 정보를 가져오는 데 실패했습니다.' });
+        if (rows.length === 0) {
+          return res.status(404).json({ message: '객실을 찾을 수 없습니다.' });
+        }
+
+        return res.status(200).json(rows[0]);
+      }
+      
+      // 객실 번호가 없으면 전체 목록 반환
+      const { rows } = await sql`
+        SELECT * FROM rooms 
+        ORDER BY number
+      `;
+      
+      res.status(200).json(rows);
+    } catch (error) {
+      console.error('객실 정보 조회 중 오류 발생:', error);
+      res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
+  } else {
+    res.setHeader('Allow', ['GET']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
 

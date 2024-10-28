@@ -278,9 +278,11 @@ const RoomEdit = ({ roomNumber }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(`/api/mypage/room?number=${number}`);
-      console.log('API 응답:', response.data);
+      // API 엔드포인트 수정
+      const response = await axios.get(`/api/mypage/roomslist?number=${number}`);
+      console.log('서버 응답:', response.data);
       
+      // 받아온 데이터에 기본값 설정
       const roomData = {
         ...response.data,
         display: response.data.display || {
@@ -289,17 +291,17 @@ const RoomEdit = ({ roomNumber }) => {
           name: false,
           type: false
         },
-        salesLimit: response.data.salesLimit || {
+        salesLimit: response.data.sales_limit || {
           hourly: false,
           nightly: false,
           longTerm: false
         },
-        hourlyRate: response.data.hourlyRate || {
+        hourlyRate: response.data.hourly_rate || {
           weekday: '',
           friday: '',
           weekend: ''
         },
-        nightlyRate: response.data.nightlyRate || {
+        nightlyRate: response.data.nightly_rate || {
           weekday: '',
           friday: '',
           weekend: ''
@@ -358,10 +360,44 @@ const RoomEdit = ({ roomNumber }) => {
 
   const handleSave = async () => {
     try {
-      await axios.put(`/api/mypage/room/${room.number}`, room);
-      router.push('/mypage?section=room-settings');
+      // 저장할 데이터 구조 로깅
+      const saveData = {
+        number: room.number,
+        floor: room.floor,
+        building: room.building,
+        name: room.name,
+        type: room.type,
+        display: room.display || {},
+        salesLimit: room.salesLimit || {},
+        hourlyRate: {
+          weekday: unformatNumber(room.hourlyRate?.weekday || ''),
+          friday: unformatNumber(room.hourlyRate?.friday || ''),
+          weekend: unformatNumber(room.hourlyRate?.weekend || '')
+        },
+        nightlyRate: {
+          weekday: unformatNumber(room.nightlyRate?.weekday || ''),
+          friday: unformatNumber(room.nightlyRate?.friday || ''),
+          weekend: unformatNumber(room.nightlyRate?.weekend || '')
+        }
+      };
+
+      console.log('저장 시도할 데이터:', saveData);
+
+      const response = await axios.put(`/api/mypage/room`, saveData);
+      
+      console.log('저장 응답:', response.data);
+
+      if (response.data) {
+        router.push('/mypage?section=room-settings');
+      }
     } catch (error) {
-      console.error('객실 정보 저장에 실패했습니다:', error);
+      // 자세 에러 정보 출력
+      console.error('저장 실패 상세 정보:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       setError('객실 정보 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
     }
   };
@@ -641,3 +677,4 @@ const InfoText = styled.p`
     flex: 1;
   }
 `;
+
