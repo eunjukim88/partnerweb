@@ -1,8 +1,8 @@
 import { sql } from '@vercel/postgres';
 
 // 객실 상태 상수
-const ROOM_STATUS = {
-  VACANT: 'vacant',
+export const ROOM_STATUS = {
+  VACANT: 'vacant',  // available 대신 vacant 사용
   HOURLY_STAY: 'hourlyStay',
   OVERNIGHT_STAY: 'overnightStay',
   LONG_STAY: 'longStay',
@@ -16,86 +16,42 @@ const ROOM_STATUS = {
   RESERVATION_COMPLETE: 'reservationComplete'
 };
 
-// 현재 시간에 해당하는 예약 상태 조회
-async function getCurrentRoomStatus() {
-  const now = new Date().toISOString();
-  
-  try {
-    const { rows } = await sql`
-      WITH current_reservations AS (
-        SELECT 
-          r.room_number,
-          CASE 
-            WHEN r.check_in <= ${now} AND r.check_out >= ${now} THEN
-              CASE 
-                WHEN r.stay_type = '대실' THEN ${ROOM_STATUS.HOURLY_STAY}
-                WHEN r.stay_type = '숙박' THEN ${ROOM_STATUS.OVERNIGHT_STAY}
-                WHEN r.stay_type = '장기' THEN ${ROOM_STATUS.LONG_STAY}
-              END
-            ELSE NULL
-          END as status
-        FROM reservations r
-        WHERE r.check_in <= ${now} AND r.check_out >= ${now}
-      )
-      SELECT 
-        r.*,
-        COALESCE(cr.status, ${ROOM_STATUS.VACANT}) as current_status
-      FROM rooms r
-      LEFT JOIN current_reservations cr ON r.number = cr.room_number
-      ORDER BY r.number;
-    `;
-    
-    return rows;
-  } catch (error) {
-    console.error('Error fetching room status:', error);
-    throw error;
-  }
-}
-
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { rows } = await sql`
-        WITH current_reservations AS (
-          SELECT 
-            r.room_number,
-            r.check_in,
-            r.check_out,
-            r.stay_type,
-            r.guest_name,
-            r.memo
-          FROM reservations r
-          WHERE 
-            CURRENT_TIMESTAMP BETWEEN r.check_in AND r.check_out
-            AND r.status != 'cancelled'
-        )
         SELECT 
-          rooms.*,
-          cr.stay_type as reservation_type,
-          cr.check_in,
-          cr.check_out,
-          cr.guest_name,
-          cr.memo as reservation_memo
-        FROM rooms
-        LEFT JOIN current_reservations cr ON rooms.number = cr.room_number
-        ORDER BY rooms.number;
+          r.*,
+          rds.*,
+          rsl.*,
+          rr.*
+        FROM rooms r
+        LEFT JOIN room_display_settings rds ON r.id = rds.room_id
+        LEFT JOIN room_sales_limits rsl ON r.id = rsl.room_id
+        LEFT JOIN room_rates rr ON r.id = rr.room_id
+        ORDER BY r.number
       `;
 
       const formattedRooms = rows.map(room => ({
-        ...room,
-        status: room.reservation_type ? 
-                (room.reservation_type === '대실' ? 'hourlyStay' :
-                 room.reservation_type === '숙박' ? 'overnightStay' : 'longStay')
-                : (room.status || 'vacant'),
-        checkIn: room.check_in ? new Date(room.check_in).toLocaleTimeString('ko-KR') : null,
-        checkOut: room.check_out ? new Date(room.check_out).toLocaleTimeString('ko-KR') : null,
-        display: room.display || {}
+        id: room.id,
+        number: room.number,
+        floor: room.floor,
+        building: room.building,
+        name: room.name,
+        type: room.type,
+        status: room.status || 'vacant',
+        display: {
+          show_floor: room.show_floor || false,
+          show_building: room.show_building || false,
+          show_name: room.show_name || false,
+          show_type: room.show_type || false
+        }
       }));
 
       res.status(200).json(formattedRooms);
     } catch (error) {
       console.error('Error:', error);
-      res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+      res.status(500).json({ message: '객실 정보 조회에 실패했습니다.' });
     }
   } else {
     res.setHeader('Allow', ['GET']);

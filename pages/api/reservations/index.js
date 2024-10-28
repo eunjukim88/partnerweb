@@ -1,6 +1,4 @@
-import { tempReservations } from '../../../src/data/tempData';
 
-let reservations = [...tempReservations];
 
 export default function handler(req, res) {
   const { method } = req;

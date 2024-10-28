@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import theme from '../../styles/theme';
 import { Button, Select, Input } from '../common/FormComponents';
-import { roomNumbers, bookingSources, stayTypes } from '../../data/tempData';
+import { FaTimes } from 'react-icons/fa';
 
 const ReservationModal = ({ reservation, onClose, onSave }) => {
   const [formData, setFormData] = useState({

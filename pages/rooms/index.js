@@ -15,6 +15,12 @@ const RoomsPage = () => {
     const [statusFilter, setStatusFilter] = useState('all');
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [displaySettings, setDisplaySettings] = useState({
+        showBuilding: false,
+        showFloor: false,
+        showName: false,
+        showType: false
+    });
     const router = useRouter();
   
     useEffect(() => {
@@ -24,18 +30,13 @@ const RoomsPage = () => {
   
     useEffect(() => {
       const fetchRooms = async () => {
-        setLoading(true);
         try {
           const response = await fetch('/api/rooms');
-          if (!response.ok) {
-            throw new Error('Failed to fetch rooms');
-          }
           const data = await response.json();
           setRooms(data);
+          setLoading(false);
         } catch (error) {
           console.error('Error fetching rooms:', error);
-          // 여기에 에러 처리 로직을 추가할 수 있습니다 (예: 에러 메시지 표시)
-        } finally {
           setLoading(false);
         }
       };
@@ -44,16 +45,26 @@ const RoomsPage = () => {
     }, []);
   
     const filteredRooms = rooms.filter(room => {
-      const tabFilterPass = 
-        filter === 'all' ||
-        (filter === 'hourly' && room.status === 'hourlyStay') ||
-        (filter === 'overnight' && room.status === 'overnightStay') ||
-        (filter === 'long' && room.status === 'longStay');
-
-      const statusFilterPass = 
-        statusFilter === 'all' || room.status === statusFilter;
-
-      return tabFilterPass && statusFilterPass;
+      // 전체 선택시
+      if (statusFilter === 'all' && filter === 'all') return true;
+      
+      // 공실 필터링
+      if (statusFilter === 'vacant') {
+        return !room.status || room.status === 'vacant';
+      }
+      
+      // 탭 필터 적용 (상단 탭)
+      if (filter !== 'all') {
+        const filterStatusMap = {
+          hourly: 'hourlyStay',
+          overnight: 'overnightStay',
+          long: 'longStay'
+        };
+        return room.status === filterStatusMap[filter];
+      }
+      
+      // 상태 필터 적용 (select box)
+      return room.status === statusFilter;
     });
 
     const handleEditRoom = (room) => {
@@ -64,6 +75,19 @@ const RoomsPage = () => {
           roomNumber: room.number 
         }
       });
+    };
+
+    // 탭 카운트 계산 함수 추가
+    const getTabCount = (tabFilter) => {
+      if (tabFilter === 'all') return rooms.length;
+      
+      const statusMap = {
+        hourly: 'hourlyStay',
+        overnight: 'overnightStay',
+        long: 'longStay'
+      };
+      
+      return rooms.filter(room => room.status === statusMap[tabFilter]).length;
     };
 
     return (
@@ -85,7 +109,7 @@ const RoomsPage = () => {
                 {tabFilter === 'all' ? '전체' : 
                  tabFilter === 'hourly' ? '대실' : 
                  tabFilter === 'overnight' ? '숙박' : '장기'}
-                <Count>{rooms.filter(room => tabFilter === 'all' || room.status === `${tabFilter}Stay`).length}</Count>
+                <Count>{getTabCount(tabFilter)}</Count>
               </Tab>
             ))}
           </TabContainer>
@@ -97,11 +121,18 @@ const RoomsPage = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="all">전체 객실 상태</option>
-                {['longStay', 'salesStopped', 'cleaningComplete', 'underInspection', 'inspectionRequested', 
-                  'inspectionComplete', 'cleaningRequested', 'hourlyStay', 'overnightStay', 'cleaningInProgress', 
-                  'vacant', 'reservationComplete'].map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
+                <option value="vacant">공실</option>
+                <option value="longStay">장기</option>
+                <option value="overnightStay">숙박</option>
+                <option value="hourlyStay">대실</option>
+                <option value="cleaningRequested">청소요청</option>
+                <option value="cleaningInProgress">청소중</option>
+                <option value="cleaningComplete">청소완료</option>
+                <option value="salesStopped">판매중지</option>
+                <option value="inspectionRequested">점검요청</option>
+                <option value="inspectionComplete">점검완료</option>
+                <option value="underInspection">점검중</option>
+                <option value="reservationComplete">예약완료</option>
               </FilterSelect>
               <DropdownIcon />
             </FilterSelectWrapper>
@@ -119,7 +150,11 @@ const RoomsPage = () => {
         ) : viewMode === 'card' ? (
           <RoomGrid>
             {filteredRooms.map(room => (
-              <RoomCard key={room.id} room={room} />
+              <RoomCard 
+                key={room.id} 
+                room={room} 
+                displaySettings={displaySettings}
+              />
             ))}
           </RoomGrid>
         ) : (

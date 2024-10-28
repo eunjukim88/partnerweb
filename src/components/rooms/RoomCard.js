@@ -5,7 +5,6 @@ import styled, { keyframes } from 'styled-components'; // styled-components와 k
 import { MdCreditCard, MdCreditCardOff } from "react-icons/md"; // Material Design 아이콘 임포트
 import { IoIosWarning } from "react-icons/io"; // iOS 경고 아이콘 임포트
 import WifiIcon from '../WifiIcon'; // WifiIcon 컴포넌트 임포트
-import { fetchWifiStrength } from '../../../pages/api/rooms'; // Wi-Fi 강도 조회 API 함수 임포트
 import theme from '../../styles/theme'; // 테마 설정 임포트
 
 // RoomCard.js 상단에 추가
@@ -13,17 +12,31 @@ const generateRandomCardStatus = () => {
   return Math.random() > 0.5;
 };
 
-const generateRandomStatus = () => {
-  const statuses = [
-    '장기', '숙박', '판매중지', '청소완료',
-    '점검중', '점검완료', '청소요청',
-    '대실', '청소중', '공실', '예약완료',
-    '점검요청'
-  ];
-  return statuses[Math.floor(Math.random() * statuses.length)];
+
+const RoomNumberDisplay = ({ building, floor, number, display, name, type }) => {
+  let displayText = number ? `${number}호` : '';
+  
+  if (display?.show_building && building) {
+    displayText = `${building}동 ${displayText}`;
+  }
+  if (display?.show_floor && floor) {
+    displayText = `${floor}층 ${displayText}`;
+  }
+  
+  return (
+    <RoomInfo>
+      <StyledRoomNumber>{displayText}</StyledRoomNumber>
+      {display?.show_name && name && (
+        <RoomName>{name}</RoomName>
+      )}
+      {display?.show_type && type && (
+        <RoomType>{type}</RoomType>
+      )}
+    </RoomInfo>
+  );
 };
 
-const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 받음
+const RoomCard = ({ room, displaySettings }) => { // RoomCard 컴포넌트 정의, room prop을 받음
   const [mainCard, setMainCard] = useState(generateRandomCardStatus());
   const [subCard, setSubCard] = useState(generateRandomCardStatus());
 
@@ -36,6 +49,9 @@ const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 �
 
     return () => clearInterval(statusInterval);
   }, []);
+
+  // room이 없는 경우 처리
+  if (!room) return null;
 
   const needsCardAlert = !mainCard && !subCard; // 메인 카드와 서브 카드가 모두 없을 경우 경고 필요
 
@@ -74,26 +90,37 @@ const RoomCard = ({ room }) => { // RoomCard 컴포넌트 정의, room prop을 �
   const checkInStatus = getCheckInStatus(room); // 체크인 상태 변수 설정
 
   return (
-    <CardContainer status={room.status}> {/* 상태에 따라 스타일이 변경되는 카드 컨테이너 */}
+    <CardContainer status={room.status || 'vacant'}> 
       <RoomHeader> {/* 방 헤더 섹션 */}
-        <RoomInfo> {/* 방 정보 섹션 */}
-          <RoomNumber>{room.building}{room.floor}{room.number}호</RoomNumber> {/* 방 번호 표시 */}
-          <RoomName>{room.name}</RoomName> {/* 방 이름 표시 */}
-        </RoomInfo>
-        <WifiIcon /> {/* Wi-Fi가 있는 경우 Wi-Fi 아이콘 표시 */}
+      <RoomNumberDisplay 
+          building={room.building}
+          floor={room.floor}
+          number={room.number}
+          name={room.name}
+          type={room.type}
+          display={room.display || {}} // 기본값 설정
+        />  
+        {room.hasWifi && <WifiIcon />} {/* Wi-Fi가 있는 경우 Wi-Fi 아이콘 표시 */}
       </RoomHeader>
       <StatusSection> {/* 상태 섹션 */}
         <CheckInStatus>
-          {checkInStatus} {/* 체크인 상태 표시 */}
+          {room.checkInStatus && (
+            <>
+              체크인 | {room.checkInTime}
+              {room.delay > 0 && (
+                <DelayText> {formatDelayTime(room.delay)} 지연</DelayText>
+              )}
+            </>
+          )}
         </CheckInStatus>
       </StatusSection>
-      <RoomStatus>{getStatusText(room.status)}</RoomStatus> {/* 방 상태 텍스트 표시 */}
+      <RoomStatus>{getStatusText(room.status || 'vacant')}</RoomStatus> {/* 방 상태 텍스트 표시 */}
       <RoomTimes>
-        {room.checkIn} | {room.checkOut} {/* 체크인 및 체크아웃 시간 표시 */}
+        {room.checkIn && room.checkOut ? `${room.checkIn} | ${room.checkOut}` : '-'}
       </RoomTimes>
       <BottomSection> {/* 하단 섹션 */}
         <MemoSection> {/* 메모 섹션 */}
-          <MemoText>{room.memo}</MemoText> {/* 메모 텍스트 표시 */}
+          <MemoText>{room.memo || ''}</MemoText> {/* 메모 텍스트 표시 */}
         </MemoSection>
         <CardIconsContainer> {/* 카드 아이콘 컨테이너 */}
           {needsCardAlert ? ( // 카드 경고가 필요한 경우
@@ -194,8 +221,8 @@ const RoomInfo = styled.div`
   align-items: center;
 `;
 
-// 방 번호 스타일링
-const RoomNumber = styled.div`
+// 방 번호 스타일링 (이름 변경)
+const StyledRoomNumber = styled.div`
   font-size: 20px;
   font-weight: bold;
   margin-right: 10px;
@@ -311,20 +338,21 @@ const AlertAnimation = styled.div`
 // 상태 텍스트를 반환하는 함수
 const getStatusText = (status) => {
   const statusMap = {
-    longStay: '장기',
-    overnightStay: '숙박',
-    salesStopped: '판매중지',
-    cleaningComplete: '청소완료',
-    underInspection: '점검중',
-    inspectionComplete: '점검완료',
-    cleaningRequested: '청소요청',
-    hourlyStay: '대실',
-    cleaningInProgress: '청소중',
     vacant: '공실',
-    reservationComplete: '예약완료',
-    inspectionRequested: '점검요청'
+    hourlyStay: '대실',
+    overnightStay: '숙박',
+    longStay: '장기',
+    cleaningRequested: '청소요청',
+    cleaningInProgress: '청소중',
+    cleaningComplete: '청소완료',
+    salesStopped: '판매중지',
+    inspectionRequested: '점검요청',
+    inspectionComplete: '점검완료',
+    underInspection: '점검중',
+    reservationComplete: '예약완료'
   };
-  return statusMap[status] || status; // 상태에 따른 텍스트 반환, 매핑되지 않으면 상태 자체 반환
+  return statusMap[status] || '공실';
 };
 
 export default RoomCard; // RoomCard 컴포넌트를 기본 내보내기
+

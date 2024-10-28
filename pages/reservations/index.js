@@ -3,27 +3,27 @@ import styled from 'styled-components';
 import ReservationList from '../../src/components/reservations/ReservationList';
 import TimelineView from '../../src/components/reservations/TimelineView';
 import { TabMenu, TabButton } from '../../src/components/common/TabComponents';
-import { getReservations, bookingSources, stayTypes, roomNumbers } from '../../src/data/tempData';
 
 const ReservationsPage = () => {
   const [activeTab, setActiveTab] = useState('list');
   const [reservations, setReservations] = useState([]);
-  const [rooms, setRooms] = useState(roomNumbers);
+  const [rooms, setRooms] = useState([]);
   const [timelineStartDate, setTimelineStartDate] = useState(new Date());
 
   useEffect(() => {
-    setReservations(getReservations());
-  }, []);
+    // 나중에 실제 예약 데이터를 가져오는 API 호출로 대체
+    const fetchReservations = async () => {
+      try {
+        const response = await fetch('/api/reservations');
+        const data = await response.json();
+        setReservations(data);
+      } catch (error) {
+        console.error('Error fetching reservations:', error);
+      }
+    };
 
-  const handleTimelineChange = (direction) => {
-    const newDate = new Date(timelineStartDate);
-    if (direction === 'next') {
-      newDate.setMonth(newDate.getMonth() + 1);
-    } else {
-      newDate.setMonth(newDate.getMonth() - 1);
-    }
-    setTimelineStartDate(newDate);
-  };
+    fetchReservations();
+  }, []);
 
   return (
     <PageContent>
@@ -35,16 +35,12 @@ const ReservationsPage = () => {
       {activeTab === 'list' ? (
         <ReservationList 
           reservations={reservations} 
-          setReservations={setReservations} 
-          bookingSources={bookingSources}
-          stayTypes={stayTypes}
+          setReservations={setReservations}
         />
       ) : (
         <TimelineView 
-          reservations={reservations} 
-          roomNumbers={rooms}
+          reservations={reservations}
           timelineStartDate={timelineStartDate}
-          stayTypes={stayTypes}
         />
       )}
     </PageContent>

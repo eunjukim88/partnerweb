@@ -20,7 +20,7 @@ const RoomSettings = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get('/api/mypage/roomslist');
+      const response = await axios.get('/api/mypage/rooms');
       console.log('API 응답:', response.data);
       setRooms(response.data);
     } catch (error) {
@@ -41,15 +41,29 @@ const RoomSettings = () => {
     router.push(`/mypage?section=room-edit&roomNumber=${roomNumber}`);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('정말로 이 객실을 삭제하시겠습니까?')) {
-      try {
-        await axios.delete(`/api/mypage/roomslist?id=${id}`);
-        fetchRooms(); // 삭제 후 목록 새로고침
-      } catch (error) {
-        console.error('객실 삭제에 실패했습니다:', error);
-        setError('객실 삭제 중 오류가 발생했습니다. 다시 시도해 주세요.');
+  const handleUpdateRoom = async (roomData) => {
+    try {
+      console.log('업데이트할 룸 데이터:', roomData);
+
+      const updateData = {
+        id: roomData.id,
+        display: {
+          showBuilding: Boolean(roomData.display?.showBuilding),
+          showFloor: Boolean(roomData.display?.showFloor),
+          showName: Boolean(roomData.display?.showName)
+        }
+      };
+
+      console.log('서버로 보낼 데이터:', updateData);
+
+      const response = await axios.put(`/api/mypage/roomslist`, updateData);
+      
+      if (response.status === 200) {
+        console.log('업데이트 성공:', response.data);
+        fetchRooms(); // 목록 새로고침
       }
+    } catch (error) {
+      console.error('객실 정보 업데이트 실패:', error);
     }
   };
 

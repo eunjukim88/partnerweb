@@ -32,24 +32,40 @@ export default async function handler(req, res) {
       console.error('객실 정보 조회 중 오류 발생:', error);
       res.status(500).json({ message: '서버 오류가 발생했습니다.' });
     }
+  } else if (req.method === 'PUT') {
+    try {
+      const { id, display, ...roomData } = req.body;
+      
+      // 받은 데이터 로깅
+      console.log('API received data:', req.body);
+      console.log('Display settings:', display);
+
+      const result = await sql`
+        UPDATE rooms 
+        SET 
+          display = ${JSON.stringify({
+            show_building: Boolean(display.showBuilding),
+            show_floor: Boolean(display.showFloor),
+            show_name: Boolean(display.showName)
+          })}::jsonb,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${id}
+        RETURNING *
+      `;
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ message: '객실을 찾을 수 없습니다.' });
+      }
+
+      console.log('Updated room:', result.rows[0]);
+      res.status(200).json(result.rows[0]);
+    } catch (error) {
+      console.error('Update error:', error);
+      res.status(500).json({ error: '객실 정보 업데이트 실패', details: error.message });
+    }
   } else {
     res.setHeader('Allow', ['GET']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-}
-
-// 새 객실 추가
-async function addRoom(req, res) {
-  const { floor, building, number, name, type } = req.body;
-  try {
-    const { rows } = await sql`
-      INSERT INTO rooms (floor, building, number, name, type)
-      VALUES (${floor}, ${building}, ${number}, ${name}, ${type})
-      RETURNING *
-    `;
-    res.status(201).json(rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: '객실 추가에 실패했습니다.' });
   }
 }
 

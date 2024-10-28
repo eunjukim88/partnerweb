@@ -9,10 +9,6 @@ const TimelineView = ({ timelineStartDate, onTimelineChange, roomNumbers, stayTy
   const [isFirstHalf, setIsFirstHalf] = useState(true);
   const defaultStayTypes = ['숙박', '대실', '장기'];
   const actualStayTypes = stayTypes || defaultStayTypes;
-
-  useEffect(() => {
-    setReservations(getReservations());
-  }, []);
   
   useEffect(() => {
     setCurrentDate(timelineStartDate);
