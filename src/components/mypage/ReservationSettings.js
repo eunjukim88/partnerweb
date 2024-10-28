@@ -506,8 +506,9 @@ const SectionTitle = styled.h3`
 `;
 const DayContainer = styled.div`
   display: flex;
-  gap: 10px;
-  margin: 15px 0;
+  justify-content: space-between;
+  padding: 0 20px;
+  margin: 10px 0;
 `;
 
 const DayButton = styled.button`
@@ -515,7 +516,7 @@ const DayButton = styled.button`
   border: 2px solid ${props => props.selected ? theme.colors.primary : '#ddd'};
   border-radius: 4px;
   background-color: ${props => props.selected ? theme.colors.primary : 'white'};
-  color: ${props => props.selected ? 'white' : 'black'};
+  color: ${props => props.selected ? '#3395FF' : 'black'};
   cursor: ${props => !props.isEditing ? 'not-allowed' : 'pointer'};
   opacity: ${props => !props.isEditing ? 0.7 : 1};
   transition: all 0.2s ease;
@@ -658,13 +659,13 @@ const ButtonContainer = styled.div`
 
 const SaveButton = styled(Button)`
   padding: 10px 30px;
-  background-color: ${theme.colors.primary};
+  background-color: #3395FF;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 16px;
-  width: 120px;
+  width: 160px;
 
   &:hover {
     background-color: ${theme.colors.primaryDark};
@@ -679,7 +680,7 @@ const EditButton = styled(Button)`
   border-radius: 4px;
   cursor: pointer;
   font-size: 16px;
-  width: 120px;
+  width: 160px;
 
   &:hover {
     background-color: ${theme.colors.secondaryDark};
