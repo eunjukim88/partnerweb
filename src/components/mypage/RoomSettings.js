@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import styled from 'styled-components';
 import { Button, Input, Pagination } from '../common/FormComponents';
+import { useRouter } from 'next/router';
 
 const RoomSettings = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,6 +10,7 @@ const RoomSettings = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const router = useRouter();
 
   useEffect(() => {
     fetchRooms();
@@ -36,7 +38,7 @@ const RoomSettings = () => {
   const totalPages = Math.ceil(rooms.length / itemsPerPage);
 
   const handleEdit = (roomNumber) => {
-    // 수정 페이지로 이동하는 로직
+    router.push(`/mypage?section=room-edit&roomNumber=${roomNumber}`);
   };
 
   const handleDelete = async (id) => {
