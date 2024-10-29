@@ -5,6 +5,22 @@ import theme from '../../styles/theme';
 import { Button, Input } from '../common/FormComponents';
 import axios from 'axios';
 
+// formatTimeToAmPm 함수 추가
+const formatTimeToAmPm = (timeStr) => {
+  if (!timeStr) return '';
+  const [hours, minutes] = timeStr.split(':');
+  let hour = parseInt(hours);
+  const period = hour >= 12 ? '오후' : '오전';
+  
+  if (hour > 12) {
+    hour -= 12;
+  } else if (hour === 0) {
+    hour = 12;
+  }
+  
+  return `${period}:${hour.toString().padStart(2, '0')}:${minutes}`;
+};
+
 // 커스텀 시간 선택 컴포넌트
 const TimeSelector = ({ value, onChange, disabled }) => {
   const [isOpen, setIsOpen] = useState(false);

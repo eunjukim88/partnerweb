@@ -17,7 +17,7 @@ const RoomNumberDisplay = ({ building, floor, number, display, name, type }) => 
   let displayText = number ? `${number}호` : '';
   
   if (display?.show_building && building) {
-    displayText = `${building}동 ${displayText}`;
+    displayText = `${building} ${displayText}`;
   }
   if (display?.show_floor && floor) {
     displayText = `${floor}층 ${displayText}`;
@@ -30,7 +30,7 @@ const RoomNumberDisplay = ({ building, floor, number, display, name, type }) => 
         <RoomName>{name}</RoomName>
       )}
       {display?.show_type && type && (
-        <RoomType>{type}</RoomType>
+        <RoomName>{type}</RoomName>
       )}
     </RoomInfo>
   );

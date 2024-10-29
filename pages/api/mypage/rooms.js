@@ -20,10 +20,12 @@ async function handleGetRooms(req, res) {
     
     const query = number 
       ? sql`
-          SELECT r.*, 
-                 rds.*, 
-                 rsl.*,
-                 rr.*
+          SELECT 
+            r.*,
+            rds.show_floor, rds.show_building, rds.show_name, rds.show_type,
+            rsl.hourly, rsl.nightly, rsl.long_term,
+            rr.hourly_weekday, rr.hourly_friday, rr.hourly_weekend,
+            rr.nightly_weekday, rr.nightly_friday, rr.nightly_weekend
           FROM rooms r
           LEFT JOIN room_display_settings rds ON r.id = rds.room_id
           LEFT JOIN room_sales_limits rsl ON r.id = rsl.room_id
@@ -31,10 +33,12 @@ async function handleGetRooms(req, res) {
           WHERE r.number = ${number}
         `
       : sql`
-          SELECT r.*, 
-                 rds.*, 
-                 rsl.*,
-                 rr.*
+          SELECT 
+            r.*,
+            rds.show_floor, rds.show_building, rds.show_name, rds.show_type,
+            rsl.hourly, rsl.nightly, rsl.long_term,
+            rr.hourly_weekday, rr.hourly_friday, rr.hourly_weekend,
+            rr.nightly_weekday, rr.nightly_friday, rr.nightly_weekend
           FROM rooms r
           LEFT JOIN room_display_settings rds ON r.id = rds.room_id
           LEFT JOIN room_sales_limits rsl ON r.id = rsl.room_id
@@ -44,11 +48,6 @@ async function handleGetRooms(req, res) {
     
     const { rows } = await query;
 
-    if (number && rows.length === 0) {
-      return res.status(404).json({ message: '객실을 찾을 수 없습니다.' });
-    }
-
-    // 응답 데이터 구조화
     const processedRooms = rows.map(row => ({
       id: row.id,
       number: row.number,
@@ -79,9 +78,7 @@ async function handleGetRooms(req, res) {
           friday: row.nightly_friday,
           weekend: row.nightly_weekend
         }
-      },
-      created_at: row.created_at,
-      updated_at: row.updated_at
+      }
     }));
 
     res.status(200).json(number ? processedRooms[0] : processedRooms);
@@ -133,17 +130,17 @@ async function handleUpdateRoom(req, res) {
         ) 
         VALUES (
           ${id},
-          ${display.floor},
-          ${display.building},
-          ${display.name},
-          ${display.type}
+          ${display.floor || false},
+          ${display.building || false},
+          ${display.name || false},
+          ${display.type || false}
         )
         ON CONFLICT (room_id) 
         DO UPDATE SET
-          show_floor = ${display.floor},
-          show_building = ${display.building},
-          show_name = ${display.name},
-          show_type = ${display.type},
+          show_floor = ${display.floor || false},
+          show_building = ${display.building || false},
+          show_name = ${display.name || false},
+          show_type = ${display.type || false},
           updated_at = CURRENT_TIMESTAMP
       `;
 
@@ -169,7 +166,7 @@ async function handleUpdateRoom(req, res) {
           updated_at = CURRENT_TIMESTAMP
       `;
 
-      // 요금 설정 ��데이트
+      // 요금 설정 업데이트
       await sql`
         INSERT INTO room_rates (
           room_id,
@@ -204,11 +201,10 @@ async function handleUpdateRoom(req, res) {
       res.status(200).json(roomResult.rows[0]);
     } catch (error) {
       await sql`ROLLBACK`;
-      throw error;
+      res.status(500).json({ error: '객실 정보 업데이트에 실패했습니다.' });
     }
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: '업데이트 실패', details: error.message });
+    res.status(500).json({ error: '요청 처리에 실패했습니다.' });
   }
 }
 

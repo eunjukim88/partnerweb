@@ -52,10 +52,13 @@ export default async function handler(req, res) {
         }
       };
 
-      res.status(200).json(processedRoom);  // formattedRooms 대신 단일 객체 반환
+      res.status(200).json(processedRoom);
     } catch (error) {
       await sql`ROLLBACK`;
       res.status(500).json({ message: '상태 업데이트에 실패했습니다.' });
     }
+  } else {
+    res.setHeader('Allow', ['PUT']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

@@ -1,7 +1,5 @@
 import { sql } from '@vercel/postgres';
 
-console.log('POSTGRES_URL:', process.env.POSTGRES_URL);
-
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
@@ -35,10 +33,6 @@ export default async function handler(req, res) {
   } else if (req.method === 'PUT') {
     try {
       const { id, display, ...roomData } = req.body;
-      
-      // 받은 데이터 로깅
-      console.log('API received data:', req.body);
-      console.log('Display settings:', display);
 
       const result = await sql`
         UPDATE rooms 
@@ -57,14 +51,13 @@ export default async function handler(req, res) {
         return res.status(404).json({ message: '객실을 찾을 수 없습니다.' });
       }
 
-      console.log('Updated room:', result.rows[0]);
       res.status(200).json(result.rows[0]);
     } catch (error) {
       console.error('Update error:', error);
       res.status(500).json({ error: '객실 정보 업데이트 실패', details: error.message });
     }
   } else {
-    res.setHeader('Allow', ['GET']);
+    res.setHeader('Allow', ['GET', 'PUT']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

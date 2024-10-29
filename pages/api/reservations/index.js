@@ -29,21 +29,29 @@ export default async function handler(req, res) {
           phone,
           check_in,
           check_out,
+          check_in_time,
+          check_out_time,
           booking_source,
           stay_type,
           status,
-          memo
+          memo,
+          created_at,
+          updated_at
         ) VALUES (
-          ${reservationData.reservationNumber},
-          ${reservationData.roomNumber},
-          ${reservationData.guestName},
+          ${reservationData.reservation_number},
+          ${reservationData.room_number},
+          ${reservationData.guest_name},
           ${reservationData.phone},
-          ${reservationData.checkIn},
-          ${reservationData.checkOut},
-          ${reservationData.bookingSource},
-          ${reservationData.stayType},
-          'confirmed',
-          ${reservationData.memo || null}
+          ${reservationData.check_in},
+          ${reservationData.check_out},
+          ${reservationData.check_in_time},
+          ${reservationData.check_out_time},
+          ${reservationData.booking_source},
+          ${reservationData.stay_type},
+          ${reservationData.status},
+          ${reservationData.memo || null},
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
         ) RETURNING *
       `;
 
@@ -73,14 +81,18 @@ export default async function handler(req, res) {
       const result = await sql`
         UPDATE reservations 
         SET 
-          room_number = ${reservationData.roomNumber},
-          guest_name = ${reservationData.guestName},
+          room_number = ${reservationData.room_number},
+          guest_name = ${reservationData.guest_name},
           phone = ${reservationData.phone},
-          check_in = ${reservationData.checkIn},
-          check_out = ${reservationData.checkOut},
-          booking_source = ${reservationData.bookingSource},
-          stay_type = ${reservationData.stayType},
-          memo = ${reservationData.memo || null}
+          check_in = ${reservationData.check_in},
+          check_out = ${reservationData.check_out},
+          check_in_time = ${reservationData.check_in_time},
+          check_out_time = ${reservationData.check_out_time},
+          booking_source = ${reservationData.booking_source},
+          stay_type = ${reservationData.stay_type},
+          status = ${reservationData.status},
+          memo = ${reservationData.memo || null},
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ${reservationData.id}
         RETURNING *
       `;
@@ -89,10 +101,10 @@ export default async function handler(req, res) {
       await sql`
         UPDATE rooms 
         SET status = ${
-          reservationData.stayType === '대실' ? 'hourlyStay' :
-          reservationData.stayType === '숙박' ? 'overnightStay' : 'longStay'
+          reservationData.stay_type === '대실' ? 'hourlyStay' :
+          reservationData.stay_type === '숙박' ? 'overnightStay' : 'longStay'
         }
-        WHERE number = ${reservationData.roomNumber}
+        WHERE number = ${reservationData.room_number}
       `;
 
       await sql`COMMIT`;
@@ -147,6 +159,8 @@ function validateReservation(data) {
     'phone',
     'checkIn',
     'checkOut',
+    'checkInTime',
+    'checkOutTime',
     'bookingSource',
     'stayType'
   ];
@@ -157,15 +171,57 @@ function validateReservation(data) {
     }
   }
 
-  // 날짜 유효성 검사
-  const checkIn = new Date(data.checkIn);
-  const checkOut = new Date(data.checkOut);
+  // 날짜 및 시간 유효성 검사
+  const checkIn = new Date(`${data.checkIn} ${data.checkInTime}`);
+  const checkOut = new Date(`${data.checkOut} ${data.checkOutTime}`);
+  
   if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
-    throw new Error('유효하지 않은 날짜 형식입니다.');
+    throw new Error('유효하지 않은 날짜/시간 형식입니다.');
   }
   if (checkOut <= checkIn) {
-    throw new Error('체크아웃 날짜는 체크인 날짜보다 늦어야 합니다.');
+    throw new Error('체크아웃 시간은 체크인 시간보다 늦어야 합니다.');
   }
 
   return data;
 }
+
+const formatTimeToAmPm = (timeStr) => {
+  const [hours, minutes] = timeStr.split(':');
+  let hour = parseInt(hours);
+  const period = hour >= 12 ? '오후' : '오전';
+  
+  if (hour > 12) {
+    hour -= 12;
+  } else if (hour === 0) {
+    hour = 12;
+  }
+  
+  return `${period}:${hour.toString().padStart(2, '0')}:${minutes}`;
+};
+
+// PUT 요청에서의 시간 변환 (프론트엔드 -> DB)
+const formatTime = (timeStr) => {
+  try {
+    console.log('Converting time:', timeStr);
+    const [period, timeValue] = timeStr.split(':');
+    const [hours] = timeValue.split(':');
+    let hour = parseInt(hours);
+
+    // 24시간 형식으로 변환
+    if (period === '오후' && hour !== 12) {
+      hour += 12;
+    } else if (period === '오전' && hour === 12) {
+      hour = 0;
+    }
+
+    const formattedTime = `${hour.toString().padStart(2, '0')}:00:00`;
+    console.log('Formatted time result:', formattedTime);
+    return formattedTime;
+  } catch (error) {
+    console.error('Time formatting error:', {
+      input: timeStr,
+      error: error.message
+    });
+    throw new Error(`Invalid time format: ${timeStr}`);
+  }
+};

@@ -231,26 +231,24 @@ const RoomEdit = ({ roomNumber }) => {
     building: '',
     name: '',
     type: '',
-    display: {  // 추가
-      floor: false,
-      building: false,
-      name: false,
-      type: false
+    display: {
+      show_floor: false,
+      show_building: false,
+      show_name: false,
+      show_type: false
     },
     salesLimit: {
       hourly: false,
       nightly: false,
-      longTerm: false
+      long_term: false
     },
-    hourlyRate: {
-      weekday: '',
-      friday: '',
-      weekend: ''
-    },
-    nightlyRate: {
-      weekday: '',
-      friday: '',
-      weekend: ''
+    rates: {
+      hourly_weekday: '',
+      hourly_friday: '',
+      hourly_weekend: '',
+      nightly_weekday: '',
+      nightly_friday: '',
+      nightly_weekend: ''
     }
   });
 
@@ -278,40 +276,35 @@ const RoomEdit = ({ roomNumber }) => {
     try {
       setLoading(true);
       setError(null);
-      // API 엔드포인트 수정
       const response = await axios.get(`/api/mypage/rooms?number=${number}`);
-      console.log('서버 응답:', response.data);
       
-      // 받아온 데이터에 기본값 설정
       const roomData = {
         ...response.data,
-        display: response.data.display || {
-          floor: false,
-          building: false,
-          name: false,
-          type: false
+        display: {
+          floor: response.data.display?.floor || false,
+          building: response.data.display?.building || false,
+          name: response.data.display?.name || false,
+          type: response.data.display?.type || false
         },
-        salesLimit: response.data.sales_limit || {
-          hourly: false,
-          nightly: false,
-          longTerm: false
+        salesLimit: {
+          hourly: response.data.salesLimit?.hourly || false,
+          nightly: response.data.salesLimit?.nightly || false,
+          long_term: response.data.salesLimit?.longTerm || false
         },
-        hourlyRate: response.data.hourly_rate || {
-          weekday: '',
-          friday: '',
-          weekend: ''
-        },
-        nightlyRate: response.data.nightly_rate || {
-          weekday: '',
-          friday: '',
-          weekend: ''
+        rates: {
+          hourly_weekday: response.data.rates?.hourly?.weekday || '',
+          hourly_friday: response.data.rates?.hourly?.friday || '',
+          hourly_weekend: response.data.rates?.hourly?.weekend || '',
+          nightly_weekday: response.data.rates?.nightly?.weekday || '',
+          nightly_friday: response.data.rates?.nightly?.friday || '',
+          nightly_weekend: response.data.rates?.nightly?.weekend || ''
         }
       };
       
       setRoom(roomData);
     } catch (error) {
       console.error('객실 정보를 가져오는 데 실패했습니다:', error);
-      setError('객실 정보를 불러오는 중 오류가 발생했습니다.');
+      setError('객실 정보를 불러오는 중 오류가 발생했��니다.');
     } finally {
       setLoading(false);
     }
@@ -345,15 +338,12 @@ const RoomEdit = ({ roomNumber }) => {
   };
 
   // 요금 입력 처리 함수 수정
-  const handleRateChange = (rateType, dayType, value) => {
-    // 숫자와 쉼표만 허용
-    const numericValue = unformatNumber(value);
-    
+  const handleRateChange = (field, value) => {
     setRoom(prev => ({
       ...prev,
-      [rateType]: {
-        ...prev[rateType],
-        [dayType]: numericValue
+      rates: {
+        ...prev.rates,
+        [field]: unformatNumber(value)
       }
     }));
   };
@@ -368,26 +358,26 @@ const RoomEdit = ({ roomNumber }) => {
         name: room.name || null,
         type: room.type || null,
         display: {
-          floor: Boolean(room.display?.floor),
-          building: Boolean(room.display?.building),
-          name: Boolean(room.display?.name),
-          type: Boolean(room.display?.type)
+          floor: room.display?.floor || false,
+          building: room.display?.building || false,
+          name: room.display?.name || false,
+          type: room.display?.type || false
         },
         salesLimit: {
-          hourly: Boolean(room.salesLimit?.hourly),
-          nightly: Boolean(room.salesLimit?.nightly),
-          longTerm: Boolean(room.salesLimit?.longTerm)
+          hourly: room.salesLimit?.hourly || false,
+          nightly: room.salesLimit?.nightly || false,
+          longTerm: room.salesLimit?.long_term || false
         },
         rates: {
           hourly: {
-            weekday: parseInt(unformatNumber(room.rates?.hourly?.weekday || '0')),
-            friday: parseInt(unformatNumber(room.rates?.hourly?.friday || '0')),
-            weekend: parseInt(unformatNumber(room.rates?.hourly?.weekend || '0'))
+            weekday: parseInt(room.rates?.hourly_weekday || '0'),
+            friday: parseInt(room.rates?.hourly_friday || '0'),
+            weekend: parseInt(room.rates?.hourly_weekend || '0')
           },
           nightly: {
-            weekday: parseInt(unformatNumber(room.rates?.nightly?.weekday || '0')),
-            friday: parseInt(unformatNumber(room.rates?.nightly?.friday || '0')),
-            weekend: parseInt(unformatNumber(room.rates?.nightly?.weekend || '0'))
+            weekday: parseInt(room.rates?.nightly_weekday || '0'),
+            friday: parseInt(room.rates?.nightly_friday || '0'),
+            weekend: parseInt(room.rates?.nightly_weekend || '0')
           }
         }
       };
@@ -445,7 +435,7 @@ const RoomEdit = ({ roomNumber }) => {
             <StyledSwitch>
               <input
                 type="checkbox"
-                checked={room.display?.floor}
+                checked={room.display?.floor || false}
                 onChange={() => handleDisplayChange('floor')}
               />
               <span></span>
@@ -461,7 +451,7 @@ const RoomEdit = ({ roomNumber }) => {
             <StyledSwitch>
               <input
                 type="checkbox"
-                checked={room.display?.building}
+                checked={room.display?.building || false}
                 onChange={() => handleDisplayChange('building')}
               />
               <span></span>
@@ -480,7 +470,7 @@ const RoomEdit = ({ roomNumber }) => {
             <StyledSwitch>
               <input
                 type="checkbox"
-                checked={room.display?.name}
+                checked={room.display?.name || false}
                 onChange={() => handleDisplayChange('name')}
               />
               <span></span>
@@ -496,7 +486,7 @@ const RoomEdit = ({ roomNumber }) => {
             <StyledSwitch>
               <input
                 type="checkbox"
-                checked={room.display?.type}
+                checked={room.display?.type || false}
                 onChange={() => handleDisplayChange('type')}
               />
               <span></span>
@@ -540,8 +530,8 @@ const RoomEdit = ({ roomNumber }) => {
             <StyledSwitch>
               <input
                 type="checkbox"
-                checked={room.salesLimit.longTerm}
-                onChange={() => handleCheckboxChange('longTerm')}
+                checked={room.salesLimit.long_term}
+                onChange={() => handleCheckboxChange('long_term')}
               />
               <span></span>
             </StyledSwitch>
@@ -574,20 +564,20 @@ const RoomEdit = ({ roomNumber }) => {
                   <td>단가</td>
                   <td>
                     <RateInput 
-                      value={formatNumber(room.hourlyRate.weekday)}
-                      onChange={(e) => handleRateChange('hourlyRate', 'weekday', e.target.value)}
+                      value={formatNumber(room.rates.hourly_weekday)}
+                      onChange={(e) => handleRateChange('hourly_weekday', e.target.value)}
                     />
                   </td>
                   <td>
                     <RateInput 
-                      value={formatNumber(room.hourlyRate.friday)}
-                      onChange={(e) => handleRateChange('hourlyRate', 'friday', e.target.value)}
+                      value={formatNumber(room.rates.hourly_friday)}
+                      onChange={(e) => handleRateChange('hourly_friday', e.target.value)}
                     />
                   </td>
                   <td>
                     <RateInput 
-                      value={formatNumber(room.hourlyRate.weekend)}
-                      onChange={(e) => handleRateChange('hourlyRate', 'weekend', e.target.value)}
+                      value={formatNumber(room.rates.hourly_weekend)}
+                      onChange={(e) => handleRateChange('hourly_weekend', e.target.value)}
                     />
                   </td>
                 </tr>
@@ -609,20 +599,20 @@ const RoomEdit = ({ roomNumber }) => {
                   <td>단가</td>
                   <td>
                     <RateInput 
-                      value={formatNumber(room.nightlyRate.weekday)}
-                      onChange={(e) => handleRateChange('nightlyRate', 'weekday', e.target.value)}
+                      value={formatNumber(room.rates.nightly_weekday)}
+                      onChange={(e) => handleRateChange('nightly_weekday', e.target.value)}
                     />
                   </td>
                   <td>
                     <RateInput 
-                      value={formatNumber(room.nightlyRate.friday)}
-                      onChange={(e) => handleRateChange('nightlyRate', 'friday', e.target.value)}
+                      value={formatNumber(room.rates.nightly_friday)}
+                      onChange={(e) => handleRateChange('nightly_friday', e.target.value)}
                     />
                   </td>
                   <td>
                     <RateInput 
-                      value={formatNumber(room.nightlyRate.weekend)}
-                      onChange={(e) => handleRateChange('nightlyRate', 'weekend', e.target.value)}
+                      value={formatNumber(room.rates.nightly_weekend)}
+                      onChange={(e) => handleRateChange('nightly_weekend', e.target.value)}
                     />
                   </td>
                 </tr>

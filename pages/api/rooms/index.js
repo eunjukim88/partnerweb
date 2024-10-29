@@ -22,9 +22,10 @@ export default async function handler(req, res) {
       const { rows } = await sql`
         SELECT 
           r.*,
-          rds.*,
-          rsl.*,
-          rr.*
+          rds.show_floor, rds.show_building, rds.show_name, rds.show_type,
+          rsl.hourly, rsl.nightly, rsl.long_term,
+          rr.hourly_weekday, rr.hourly_friday, rr.hourly_weekend,
+          rr.nightly_weekday, rr.nightly_friday, rr.nightly_weekend
         FROM rooms r
         LEFT JOIN room_display_settings rds ON r.id = rds.room_id
         LEFT JOIN room_sales_limits rsl ON r.id = rsl.room_id
@@ -39,12 +40,29 @@ export default async function handler(req, res) {
         building: room.building,
         name: room.name,
         type: room.type,
-        status: room.status || 'vacant',
+        status: room.status || ROOM_STATUS.VACANT,
         display: {
           show_floor: room.show_floor || false,
           show_building: room.show_building || false,
           show_name: room.show_name || false,
           show_type: room.show_type || false
+        },
+        salesLimit: {
+          hourly: room.hourly || false,
+          nightly: room.nightly || false,
+          longTerm: room.long_term || false
+        },
+        rates: {
+          hourly: {
+            weekday: room.hourly_weekday || 0,
+            friday: room.hourly_friday || 0,
+            weekend: room.hourly_weekend || 0
+          },
+          nightly: {
+            weekday: room.nightly_weekday || 0,
+            friday: room.nightly_friday || 0,
+            weekend: room.nightly_weekend || 0
+          }
         }
       }));
 
