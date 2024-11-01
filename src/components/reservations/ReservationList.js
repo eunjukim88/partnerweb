@@ -51,12 +51,23 @@ const ReservationList = () => {
 
   // 컴포넌트 마운트 시 예약 데이터 로드
   useEffect(() => {
-    fetchReservations();
+    const loadReservations = async () => {
+      try {
+        await fetchReservations();
+      } catch (error) {
+        console.error('예약 데이터 로딩 실패:', error);
+      }
+    };
+    loadReservations();
   }, [fetchReservations]);
 
   // 검색 및 필터링 로직
   const handleSearch = useCallback(() => {
-    if (!Array.isArray(reservations)) return;
+    if (!Array.isArray(reservations) || reservations.length === 0) {
+      setFilteredReservations([]);
+      setTotalFilteredReservations([]);
+      return;
+    }
 
     let filtered = [...reservations];
     

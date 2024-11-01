@@ -6,15 +6,20 @@ import ReservationList from '../../src/components/reservations/ReservationList';
 import TimelineView from '../../src/components/reservations/TimelineView';
 import { TabMenu, TabButton } from '../../src/components/common/TabComponents';
 import useReservationStore from '../../src/store/reservationStore';
+import useRoomStore from '../../src/store/roomStore';
 
 const ReservationsPage = () => {
   const [activeTab, setActiveTab] = useState('list');
   const [timelineStartDate, setTimelineStartDate] = useState(new Date());
-  const { fetchReservations } = useReservationStore();
+  const { fetchReservations, reservations } = useReservationStore();
+  const { fetchRooms, rooms } = useRoomStore();
 
   useEffect(() => {
-    fetchReservations();
-  }, [fetchReservations]);
+    const loadData = async () => {
+      await Promise.all([fetchReservations(), fetchRooms()]);
+    };
+    loadData();
+  }, [fetchReservations, fetchRooms]);
 
   return (
     <PageContent>
@@ -37,7 +42,7 @@ const ReservationsPage = () => {
       {activeTab === 'list' ? (
         <ReservationList />
       ) : (
-        <TimelineView timelineStartDate={timelineStartDate} />
+        <TimelineView />
       )}
     </PageContent>
   );

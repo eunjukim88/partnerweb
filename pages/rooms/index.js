@@ -45,7 +45,8 @@ const RoomsPage = () => {
       return reservations.find(res => 
         res.room_number === roomNumber &&
         new Date(res.check_in) <= now &&
-        new Date(res.check_out) >= now
+        new Date(res.check_out) >= now &&
+        res.status === 'confirmed'
       );
     };
   
@@ -53,14 +54,18 @@ const RoomsPage = () => {
       const currentReservation = getCurrentReservation(room.number);
       return {
         ...room,
-        status: currentReservation ? 
-          currentReservation.stay_type === '대실' ? 'hourlyStay' :
-          currentReservation.stay_type === '숙박' ? 'overnightStay' :
-          currentReservation.stay_type === '장기' ? 'longStay' : 
-          room.status : 
-          'vacant',
+        status: currentReservation 
+          ? currentReservation.stay_type === '대실' 
+            ? 'hourlyStay' 
+            : currentReservation.stay_type === '숙박' 
+              ? 'overnightStay' 
+              : currentReservation.stay_type === '장기' 
+                ? 'longStay' 
+                : room.status 
+          : 'vacant',
         checkIn: currentReservation?.check_in,
-        checkOut: currentReservation?.check_out
+        checkOut: currentReservation?.check_out,
+        currentReservation: currentReservation
       };
     }).filter(room => {
       if (statusFilter === 'all' && filter === 'all') return true;
@@ -81,6 +86,16 @@ const RoomsPage = () => {
         return currentReservation.stay_type === filterMap[filter];
       }
       
+      const currentReservation = getCurrentReservation(room.number);
+      if (currentReservation) {
+        const reservationStatusMap = {
+          '대실': 'hourlyStay',
+          '숙박': 'overnightStay',
+          '장기': 'longStay'
+        };
+        return reservationStatusMap[currentReservation.stay_type] === statusFilter;
+      }
+      
       return room.status === statusFilter;
     });
 
@@ -97,7 +112,7 @@ const RoomsPage = () => {
     const getTabCount = (tabFilter) => {
       if (tabFilter === 'all') return filteredRooms.length;
       
-      return filteredRooms.filter(room => {
+      return rooms.filter(room => {
         const currentReservation = getCurrentReservation(room.number);
         if (!currentReservation) return false;
 

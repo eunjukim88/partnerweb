@@ -10,9 +10,8 @@ const useRoomStore = create((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await axios.get('/api/rooms');
-      console.log('Fetched rooms:', response.data);
+      console.log('Room API Response:', response.data);
       
-      // rooms와 display settings가 조인된 데이터
       const roomsWithSettings = response.data.map(room => ({
         id: room.id,
         number: room.number,
@@ -21,7 +20,6 @@ const useRoomStore = create((set, get) => ({
         name: room.name,
         type: room.type,
         status: room.status,
-        // display settings
         show_floor: room.show_floor || false,
         show_building: room.show_building || false,
         show_name: room.show_name || false,
@@ -33,9 +31,12 @@ const useRoomStore = create((set, get) => ({
         isLoading: false, 
         error: null 
       });
+
+      return roomsWithSettings;
     } catch (error) {
       console.error('Error fetching rooms:', error);
       set({ error: error.message, isLoading: false });
+      throw error;
     }
   },
 

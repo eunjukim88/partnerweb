@@ -26,11 +26,35 @@ const TimelineView = () => {
     return endDate;
   }, [currentWeekStart]);
 
-  // 컴포넌트 마운트 시 예약 데이터 로드
+  // 초기 데이터 로딩 부분 수정
   useEffect(() => {
-    fetchReservations();
-    fetchRooms();
-  }, [fetchReservations, fetchRooms]);
+    const loadData = async () => {
+      try {
+        console.log('데이터 로딩 시작...');
+        await Promise.all([
+          fetchReservations(),
+          fetchRooms()
+        ]);
+      } catch (error) {
+        console.error('데이터 로딩 에러:', error);
+      }
+    };
+    
+    loadData();
+  }, [fetchReservations, fetchRooms]); // 의존성 배열 수정
+
+  // 데이터 상태 모니터링을 위한 useEffect 추가
+  useEffect(() => {
+    if (reservations) {
+      console.log('현재 예약 데이터:', reservations);
+    }
+  }, [reservations]);
+
+  useEffect(() => {
+    if (rooms) {
+      console.log('현재 객실 데이터:', rooms);
+    }
+  }, [rooms]);
 
   // 주간 이동 핸들러
   const handlePrevWeek = () => {
@@ -74,6 +98,7 @@ const TimelineView = () => {
 
   // 예약 데이터 필터링 부분 수정
   const timelineReservations = useMemo(() => {
+    console.log('타임라인 예약 데이터 계산:', reservations); // 디버깅용
     if (!Array.isArray(reservations)) return [];
 
     return reservations.filter(reservation => {
@@ -81,8 +106,15 @@ const TimelineView = () => {
         const checkIn = new Date(reservation.check_in);
         const checkOut = new Date(reservation.check_out);
         
-        // 현재 표시 중인 주에 포함되는 예약만 필터링
-        return checkIn <= currentWeekEnd && checkOut >= currentWeekStart;
+        // 날짜 유효성 검사 추가
+        if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+          console.error('잘못된 날짜 형식:', reservation);
+          return false;
+        }
+        
+        const isInRange = checkIn <= currentWeekEnd && checkOut >= currentWeekStart;
+        console.log('예약 범위 체크:', { checkIn, checkOut, isInRange }); // 디버깅용
+        return isInRange;
       } catch (error) {
         console.error('날짜 처리 오류:', error, reservation);
         return false;
@@ -319,26 +351,37 @@ ${reservation.payment_status ? `결제상태: ${reservation.payment_status}` : '
 
   // ALL_ROOMS 대신 rooms 데이터 사용
   const sortedRoomNumbers = useMemo(() => {
+    console.log('정렬된 객실 번호 계산:', rooms); // 디버깅용
     if (!Array.isArray(rooms)) return [];
+    
     return rooms
       .filter(room => room.status === 'active' || !room.status)
       .sort((a, b) => {
-        const aFloor = parseInt(a.floor) || 0;
-        const bFloor = parseInt(b.floor) || 0;
-        if (aFloor !== bFloor) return aFloor - bFloor;
-        return parseInt(a.number) - parseInt(b.number);
+        const aNum = parseInt(a.number);
+        const bNum = parseInt(b.number);
+        return aNum - bNum;
       })
       .map(room => room.number);
   }, [rooms]);
 
   // 로딩 상태 처리
   if (reservationsLoading || roomsLoading) {
+    console.log('데이터 로딩 중...'); // 디버깅용
     return <LoadingSpinner>데이터를 불러오는 중...</LoadingSpinner>;
   }
 
   // 에러 처리
   if (reservationsError || roomsError) {
+    console.error('에러 발생:', { reservationsError, roomsError }); // 디버깅용
     return <ErrorMessage>{reservationsError || roomsError}</ErrorMessage>;
+  }
+
+  // 데이터 존재 여부 체크 추가
+  if (!sortedRoomNumbers.length || !timelineReservations.length) {
+    console.log('데이터 없음:', { 
+      rooms: sortedRoomNumbers.length, 
+      reservations: timelineReservations.length 
+    }); // 디버깅용
   }
 
   return (
@@ -434,6 +477,7 @@ const Button = styled.button`
     background: #e9ecef;
   }
 `;
+
 const WeekHeader = styled.div`
   display: grid;
   grid-template-columns: 80px repeat(7, 1fr);

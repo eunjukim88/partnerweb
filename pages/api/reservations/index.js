@@ -10,8 +10,8 @@ export default async function handler(req, res) {
           room_number,
           guest_name,
           phone,
-          TO_CHAR(check_in, 'YYYY-MM-DD') as check_in,
-          TO_CHAR(check_out, 'YYYY-MM-DD') as check_out,
+          check_in,
+          check_out,
           TO_CHAR(check_in_time, 'HH24:MI:SS') as check_in_time,
           TO_CHAR(check_out_time, 'HH24:MI:SS') as check_out_time,
           booking_source,
@@ -22,12 +22,18 @@ export default async function handler(req, res) {
           created_at,
           updated_at
         FROM reservations 
+        WHERE status != 'cancelled'
         ORDER BY created_at DESC
       `;
 
-      console.log('Fetched reservations:', rows);
+      const formattedReservations = rows.map(reservation => ({
+        ...reservation,
+        check_in: reservation.check_in,
+        check_out: reservation.check_out,
+        price: Number(reservation.price)
+      }));
 
-      res.status(200).json({ reservations: rows });
+      res.status(200).json(formattedReservations);
     } catch (error) {
       console.error('예약 조회 실패:', error);
       res.status(500).json({ error: '예약 목록을 불러오는데 실패했습니다.' });
@@ -84,7 +90,7 @@ export default async function handler(req, res) {
     try {
       const { id } = req.query;
       if (!id) {
-        throw new Error('수정�� 예약 ID가 필요합��다.');
+        throw new Error('수정 예약 ID가 필요합다.');
       }
 
       const result = await handleReservation(req.body);
