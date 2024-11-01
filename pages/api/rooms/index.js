@@ -20,51 +20,87 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { rows } = await sql`
+        WITH current_reservations AS (
+          SELECT 
+            r.room_number,
+            r.stay_type,
+            r.check_in,
+            r.check_out
+          FROM reservations r
+          WHERE 
+            r.status = 'confirmed' 
+            AND r.check_in <= CURRENT_TIMESTAMP 
+            AND r.check_out >= CURRENT_TIMESTAMP
+        )
         SELECT 
           r.*,
           rds.show_floor, rds.show_building, rds.show_name, rds.show_type,
           rsl.hourly, rsl.nightly, rsl.long_term,
           rr.hourly_weekday, rr.hourly_friday, rr.hourly_weekend,
-          rr.nightly_weekday, rr.nightly_friday, rr.nightly_weekend
+          rr.nightly_weekday, rr.nightly_friday, rr.nightly_weekend,
+          cr.stay_type as current_stay_type,
+          cr.check_in as current_check_in,
+          cr.check_out as current_check_out
         FROM rooms r
         LEFT JOIN room_display_settings rds ON r.id = rds.room_id
         LEFT JOIN room_sales_limits rsl ON r.id = rsl.room_id
         LEFT JOIN room_rates rr ON r.id = rr.room_id
+        LEFT JOIN current_reservations cr ON r.number = cr.room_number
         ORDER BY r.number
       `;
 
-      const formattedRooms = rows.map(room => ({
-        id: room.id,
-        number: room.number,
-        floor: room.floor,
-        building: room.building,
-        name: room.name,
-        type: room.type,
-        status: room.status || ROOM_STATUS.VACANT,
-        display: {
-          show_floor: room.show_floor || false,
-          show_building: room.show_building || false,
-          show_name: room.show_name || false,
-          show_type: room.show_type || false
-        },
-        salesLimit: {
-          hourly: room.hourly || false,
-          nightly: room.nightly || false,
-          longTerm: room.long_term || false
-        },
-        rates: {
-          hourly: {
-            weekday: room.hourly_weekday || 0,
-            friday: room.hourly_friday || 0,
-            weekend: room.hourly_weekend || 0
-          },
-          nightly: {
-            weekday: room.nightly_weekday || 0,
-            friday: room.nightly_friday || 0,
-            weekend: room.nightly_weekend || 0
+      const formattedRooms = rows.map(room => {
+        // 현재 예약 상태에 따른 status 결정
+        let status = room.status || ROOM_STATUS.VACANT;
+        if (room.current_stay_type) {
+          switch(room.current_stay_type) {
+            case '대실':
+              status = ROOM_STATUS.HOURLY_STAY;
+              break;
+            case '숙박':
+              status = ROOM_STATUS.OVERNIGHT_STAY;
+              break;
+            case '장기':
+              status = ROOM_STATUS.LONG_STAY;
+              break;
           }
         }
-      }));
+
+        return {
+          id: room.id,
+          number: room.number,
+          floor: room.floor,
+          building: room.building,
+          name: room.name,
+          type: room.type,
+          status: status,
+          checkIn: room.current_check_in,
+          checkOut: room.current_check_out,
+          display: {
+            show_floor: room.show_floor || false,
+            show_building: room.show_building || false,
+            show_name: room.show_name || false,
+            show_type: room.show_type || false
+          },
+          salesLimit: {
+            hourly: room.hourly || false,
+            nightly: room.nightly || false,
+            longTerm: room.long_term || false
+          },
+          rates: {
+            hourly: {
+              weekday: room.hourly_weekday || 0,
+              friday: room.hourly_friday || 0,
+              weekend: room.hourly_weekend || 0
+            },
+            nightly: {
+              weekday: room.nightly_weekday || 0,
+              friday: room.nightly_friday || 0,
+              weekend: room.nightly_weekend || 0
+            }
+          }
+        };
+      });
 
       res.status(200).json(formattedRooms);
     } catch (error) {

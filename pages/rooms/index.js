@@ -7,21 +7,19 @@ import RoomList from '../../src/components/rooms/RoomList';
 import theme from '../../src/styles/theme';
 import RootLayout from '../../src/core/App';
 import { useRouter } from 'next/router';
+import useReservationStore from '../../src/store/reservationStore';
+import useRoomStore from '../../src/store/roomStore';
 
 const RoomsPage = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [viewMode, setViewMode] = useState('card');
     const [filter, setFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [displaySettings, setDisplaySettings] = useState({
-        showBuilding: false,
-        showFloor: false,
-        showName: false,
-        showType: false
-    });
     const router = useRouter();
+
+    const { rooms, fetchRooms } = useRoomStore();
+    const { reservations, fetchReservations } = useReservationStore();
   
     useEffect(() => {
       const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -29,41 +27,60 @@ const RoomsPage = () => {
     }, []);
   
     useEffect(() => {
-      const fetchRooms = async () => {
+      const loadData = async () => {
         try {
-          const response = await fetch('/api/rooms');
-          const data = await response.json();
-          setRooms(data);
+          await Promise.all([fetchRooms(), fetchReservations()]);
           setLoading(false);
         } catch (error) {
-          console.error('Error fetching rooms:', error);
+          console.error('Error loading data:', error);
           setLoading(false);
         }
       };
 
-      fetchRooms();
-    }, []);
+      loadData();
+    }, [fetchRooms, fetchReservations]);
   
-    const filteredRooms = rooms.filter(room => {
-      // 전체 선택시
+    const getCurrentReservation = (roomNumber) => {
+      const now = new Date();
+      return reservations.find(res => 
+        res.room_number === roomNumber &&
+        new Date(res.check_in) <= now &&
+        new Date(res.check_out) >= now
+      );
+    };
+  
+    const filteredRooms = rooms.map(room => {
+      const currentReservation = getCurrentReservation(room.number);
+      return {
+        ...room,
+        status: currentReservation ? 
+          currentReservation.stay_type === '대실' ? 'hourlyStay' :
+          currentReservation.stay_type === '숙박' ? 'overnightStay' :
+          currentReservation.stay_type === '장기' ? 'longStay' : 
+          room.status : 
+          'vacant',
+        checkIn: currentReservation?.check_in,
+        checkOut: currentReservation?.check_out
+      };
+    }).filter(room => {
       if (statusFilter === 'all' && filter === 'all') return true;
       
-      // 공실 필터링
       if (statusFilter === 'vacant') {
-        return !room.status || room.status === 'vacant';
+        return !getCurrentReservation(room.number);
       }
       
-      // 탭 필터 적용 (상단 탭)
       if (filter !== 'all') {
-        const filterStatusMap = {
-          hourly: 'hourlyStay',
-          overnight: 'overnightStay',
-          long: 'longStay'
+        const currentReservation = getCurrentReservation(room.number);
+        if (!currentReservation) return false;
+
+        const filterMap = {
+          hourly: '대실',
+          overnight: '숙박',
+          long: '장기'
         };
-        return room.status === filterStatusMap[filter];
+        return currentReservation.stay_type === filterMap[filter];
       }
       
-      // 상태 필터 적용 (select box)
       return room.status === statusFilter;
     });
 
@@ -77,17 +94,24 @@ const RoomsPage = () => {
       });
     };
 
-    // 탭 카운트 계산 함수 추가
     const getTabCount = (tabFilter) => {
-      if (tabFilter === 'all') return rooms.length;
+      if (tabFilter === 'all') return filteredRooms.length;
       
-      const statusMap = {
-        hourly: 'hourlyStay',
-        overnight: 'overnightStay',
-        long: 'longStay'
-      };
-      
-      return rooms.filter(room => room.status === statusMap[tabFilter]).length;
+      return filteredRooms.filter(room => {
+        const currentReservation = getCurrentReservation(room.number);
+        if (!currentReservation) return false;
+
+        switch(tabFilter) {
+          case 'hourly':
+            return currentReservation.stay_type === '대실';
+          case 'overnight':
+            return currentReservation.stay_type === '숙박';
+          case 'long':
+            return currentReservation.stay_type === '장기';
+          default:
+            return false;
+        }
+      }).length;
     };
 
     return (
@@ -146,19 +170,22 @@ const RoomsPage = () => {
           </ControlPanel>
         </ControlContainer>
         {loading ? (
-          <LoadingMessage>객실 정보를 불러오는 중...</LoadingMessage>
+          <LoadingMessage>로딩 중...</LoadingMessage>
         ) : viewMode === 'card' ? (
           <RoomGrid>
             {filteredRooms.map(room => (
               <RoomCard 
-                key={room.id} 
-                room={room} 
-                displaySettings={displaySettings}
+                key={room.number} 
+                room={room}
+                onEdit={() => handleEditRoom(room)}
               />
             ))}
           </RoomGrid>
         ) : (
-          <RoomList rooms={filteredRooms} onEditRoom={handleEditRoom} />
+          <RoomList 
+            rooms={filteredRooms} 
+            onEditRoom={handleEditRoom}
+          />
         )}
       </PageContent>
     </RootLayout>
