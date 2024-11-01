@@ -4,23 +4,39 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { rows } = await sql`
-        SELECT r.*, rm.status as room_status
-        FROM reservations r
-        LEFT JOIN rooms rm ON r.room_number = rm.number
-        ORDER BY r.check_in DESC
+        SELECT 
+          id,
+          reservation_number,
+          room_number,
+          guest_name,
+          phone,
+          TO_CHAR(check_in, 'YYYY-MM-DD') as check_in,
+          TO_CHAR(check_out, 'YYYY-MM-DD') as check_out,
+          TO_CHAR(check_in_time, 'HH24:MI:SS') as check_in_time,
+          TO_CHAR(check_out_time, 'HH24:MI:SS') as check_out_time,
+          booking_source,
+          stay_type,
+          status,
+          memo,
+          price,
+          created_at,
+          updated_at
+        FROM reservations 
+        ORDER BY created_at DESC
       `;
+
+      console.log('Fetched reservations:', rows);
+
       res.status(200).json({ reservations: rows });
     } catch (error) {
-      res.status(500).json({ error: '예약 조회에 실패했습니다.' });
+      console.error('예약 조회 실패:', error);
+      res.status(500).json({ error: '예약 목록을 불러오는데 실패했습니다.' });
     }
   } else if (req.method === 'POST') {
     try {
       const reservationData = req.body;
-      validateReservation(reservationData);
+      console.log('Attempting to save reservation:', reservationData);
 
-      await sql`BEGIN`;
-
-      // 예약 정보 저장
       const result = await sql`
         INSERT INTO reservations (
           reservation_number,
@@ -35,115 +51,65 @@ export default async function handler(req, res) {
           stay_type,
           status,
           memo,
-          created_at,
-          updated_at
+          price
         ) VALUES (
-          ${reservationData.reservation_number},
-          ${reservationData.room_number},
-          ${reservationData.guest_name},
+          ${reservationData.reservationNumber},
+          ${reservationData.roomNumber},
+          ${reservationData.guestName},
           ${reservationData.phone},
-          ${reservationData.check_in},
-          ${reservationData.check_out},
-          ${reservationData.check_in_time},
-          ${reservationData.check_out_time},
-          ${reservationData.booking_source},
-          ${reservationData.stay_type},
-          ${reservationData.status},
-          ${reservationData.memo || null},
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
-        ) RETURNING *
+          ${reservationData.checkIn}::date,
+          ${reservationData.checkOut}::date,
+          ${reservationData.checkInTime}::time,
+          ${reservationData.checkOutTime}::time,
+          ${reservationData.bookingSource},
+          ${reservationData.stayType},
+          'confirmed',
+          ${reservationData.memo || ''},
+          ${reservationData.price}
+        )
+        RETURNING *;
       `;
 
-      // 객실 상태 업데이트
-      await sql`
-        UPDATE rooms 
-        SET status = ${
-          reservationData.stayType === '대실' ? 'hourlyStay' :
-          reservationData.stayType === '숙박' ? 'overnightStay' : 'longStay'
-        }
-        WHERE number = ${reservationData.roomNumber}
-      `;
+      console.log('Created reservation:', result.rows[0]);
 
-      await sql`COMMIT`;
       res.status(201).json(result.rows[0]);
     } catch (error) {
-      await sql`ROLLBACK`;
-      res.status(500).json({ error: error.message });
+      console.error('예약 저장 중 오류 발생:', error);
+      res.status(500).json({ 
+        error: '예약 저장에 실패했습니다.',
+        details: error.message 
+      });
     }
   } else if (req.method === 'PUT') {
     try {
-      const reservationData = req.body;
-      validateReservation(reservationData);
+      const { id } = req.query;
+      if (!id) {
+        throw new Error('수정�� 예약 ID가 필요합��다.');
+      }
 
-      await sql`BEGIN`;
-
-      const result = await sql`
-        UPDATE reservations 
-        SET 
-          room_number = ${reservationData.room_number},
-          guest_name = ${reservationData.guest_name},
-          phone = ${reservationData.phone},
-          check_in = ${reservationData.check_in},
-          check_out = ${reservationData.check_out},
-          check_in_time = ${reservationData.check_in_time},
-          check_out_time = ${reservationData.check_out_time},
-          booking_source = ${reservationData.booking_source},
-          stay_type = ${reservationData.stay_type},
-          status = ${reservationData.status},
-          memo = ${reservationData.memo || null},
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${reservationData.id}
-        RETURNING *
-      `;
-
-      // 객실 상태 업데이트
-      await sql`
-        UPDATE rooms 
-        SET status = ${
-          reservationData.stay_type === '대실' ? 'hourlyStay' :
-          reservationData.stay_type === '숙박' ? 'overnightStay' : 'longStay'
-        }
-        WHERE number = ${reservationData.room_number}
-      `;
-
-      await sql`COMMIT`;
-      res.status(200).json(result.rows[0]);
+      const result = await handleReservation(req.body);
+      res.status(200).json(result);
     } catch (error) {
-      await sql`ROLLBACK`;
+      console.error('예약 수정 실패:', error);
       res.status(500).json({ error: error.message });
     }
   } else if (req.method === 'DELETE') {
     try {
-      const { ids } = req.body;
-      
-      await sql`BEGIN`;
-      
-      // 예약 삭제 전 객실 상태 업데이트
-      await sql`
-        UPDATE rooms r
-        SET status = 'vacant'
-        FROM reservations res
-        WHERE r.number = res.room_number
-        AND res.id = ANY(${ids}::uuid[])
-      `;
-      
-      // 예약 삭제
-      const { rowCount } = await sql`
-        DELETE FROM reservations
-        WHERE id = ANY(${ids}::uuid[])
-      `;
-      
-      await sql`COMMIT`;
-      
-      if (rowCount === 0) {
-        res.status(404).json({ message: '삭제할 예약을 찾을 수 없습니다.' });
-      } else {
-        res.status(200).json({ message: '예약이 삭제되었습니다.' });
+      const { id } = req.query;
+      if (!id) {
+        throw new Error('삭제할 예약 ID가 필요합니다.');
       }
+
+      await sql`
+        DELETE FROM reservations 
+        WHERE id = ${id}
+        RETURNING *
+      `;
+
+      res.status(200).json({ message: '예약이 성공적으로 삭제되었습니다.' });
     } catch (error) {
-      await sql`ROLLBACK`;
-      res.status(500).json({ error: '예약 삭제에 실패했습니다.' });
+      console.error('예약 삭제 실패:', error);
+      res.status(500).json({ error: error.message });
     }
   } else {
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
@@ -151,77 +117,94 @@ export default async function handler(req, res) {
   }
 }
 
-function validateReservation(data) {
-  const requiredFields = [
-    'reservationNumber',
-    'roomNumber',
-    'guestName',
-    'phone',
-    'checkIn',
-    'checkOut',
-    'checkInTime',
-    'checkOutTime',
-    'bookingSource',
-    'stayType'
-  ];
-
-  for (const field of requiredFields) {
-    if (!data[field]) {
-      throw new Error(`${field} 필드는 필수입니다.`);
-    }
-  }
-
-  // 날짜 및 시간 유효성 검사
-  const checkIn = new Date(`${data.checkIn} ${data.checkInTime}`);
-  const checkOut = new Date(`${data.checkOut} ${data.checkOutTime}`);
-  
-  if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
-    throw new Error('유효하지 않은 날짜/시간 형식입니다.');
-  }
-  if (checkOut <= checkIn) {
-    throw new Error('체크아웃 시간은 체크인 시간보다 늦어야 합니다.');
-  }
-
-  return data;
-}
-
-const formatTimeToAmPm = (timeStr) => {
-  const [hours, minutes] = timeStr.split(':');
-  let hour = parseInt(hours);
-  const period = hour >= 12 ? '오후' : '오전';
-  
-  if (hour > 12) {
-    hour -= 12;
-  } else if (hour === 0) {
-    hour = 12;
-  }
-  
-  return `${period}:${hour.toString().padStart(2, '0')}:${minutes}`;
+// 날짜 및 시간 포맷팅 함수들
+const formatDateForDisplay = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toISOString().split('T')[0];
 };
 
-// PUT 요청에서의 시간 변환 (프론트엔드 -> DB)
-const formatTime = (timeStr) => {
-  try {
-    console.log('Converting time:', timeStr);
-    const [period, timeValue] = timeStr.split(':');
-    const [hours] = timeValue.split(':');
-    let hour = parseInt(hours);
+const formatTimeForDisplay = (timeStr) => {
+  if (!timeStr) return '';
+  return timeStr.substring(0, 8); // "HH:MM:SS" 형식으로 반환
+};
 
-    // 24시간 형식으로 변환
-    if (period === '오후' && hour !== 12) {
-      hour += 12;
-    } else if (period === '오전' && hour === 12) {
-      hour = 0;
+// 예약 처리 함수
+const handleReservation = async (reservationData) => {
+  try {
+    // 예약 설정 가져오기
+    const stayTypeMap = {
+      '대실': 'hourly',
+      '숙박': 'nightly',
+      '장기': 'longTerm'
+    };
+
+    const settingsResult = await sql`
+      SELECT * FROM reservation_settings 
+      WHERE stay_type = ${stayTypeMap[reservationData.stay_type]}
+    `;
+
+    if (settingsResult.rows.length === 0) {
+      throw new Error(`${reservationData.stay_type} 유형의 예약 설정을 찾을 수 없습니다.`);
     }
 
-    const formattedTime = `${hour.toString().padStart(2, '0')}:00:00`;
-    console.log('Formatted time result:', formattedTime);
-    return formattedTime;
+    const settings = settingsResult.rows[0];
+    const baseRate = typeof settings.base_rate === 'string' 
+      ? JSON.parse(settings.base_rate) 
+      : settings.base_rate;
+
+    // 체크인 날짜 기준으로 가격 계산
+    const checkInDate = new Date(reservationData.check_in);
+    const dayOfWeek = checkInDate.getDay();
+    
+    let calculatedPrice = 0;
+    if (dayOfWeek === 5) { // 금요일
+      calculatedPrice = baseRate.friday || 0;
+    } else if (dayOfWeek === 0 || dayOfWeek === 6) { // 일요일(0) 또는 토요일(6)
+      calculatedPrice = baseRate.weekend || 0;
+    } else { // 평일
+      calculatedPrice = baseRate.weekday || 0;
+    }
+
+    // 대실인 경우 설정된 시간 사용
+    const check_in_time = reservationData.stay_type === '대실' ? 
+      settings.check_in_time : reservationData.check_in_time;
+    const check_out_time = reservationData.stay_type === '대실' ? 
+      settings.check_out_time : reservationData.check_out_time;
+
+    const result = await sql`
+      UPDATE reservations
+      SET
+        room_number = ${reservationData.room_number},
+        guest_name = ${reservationData.guest_name},
+        phone = ${reservationData.phone},
+        check_in = ${reservationData.check_in.split('T')[0]},
+        check_out = ${reservationData.check_out.split('T')[0]},
+        check_in_time = ${check_in_time},
+        check_out_time = ${check_out_time},
+        booking_source = ${reservationData.booking_source},
+        stay_type = ${reservationData.stay_type},
+        status = ${reservationData.status || 'confirmed'},
+        memo = ${reservationData.memo || ''},
+        price = ${calculatedPrice},
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${reservationData.id}
+      RETURNING *
+    `;
+
+    // 결과를 표시 형식으로 변환
+    const formattedResult = {
+      ...result.rows[0],
+      check_in: formatDateForDisplay(result.rows[0].check_in),
+      check_out: formatDateForDisplay(result.rows[0].check_out),
+      check_in_time: formatTimeForDisplay(result.rows[0].check_in_time),
+      check_out_time: formatTimeForDisplay(result.rows[0].check_out_time),
+      price: Number(result.rows[0].price)
+    };
+
+    return formattedResult;
   } catch (error) {
-    console.error('Time formatting error:', {
-      input: timeStr,
-      error: error.message
-    });
-    throw new Error(`Invalid time format: ${timeStr}`);
+    console.error('Reservation update error:', error);
+    throw error;
   }
 };

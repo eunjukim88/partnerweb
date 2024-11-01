@@ -5,10 +5,15 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // 페이지 로드 시 로그인 페이지로 리다이렉트
-    router.push('/login');
-  }, []);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      // 토큰이 없으면 로그인 페이지로
+      router.push('/login');
+    } else {
+      // 토큰이 있으면 예약 관리 페이지로
+      router.push('/reservations');
+    }
+  }, [router]);
 
-  // 리다이렉트 중에는 아무것도 렌더링하지 않음
   return null;
 }

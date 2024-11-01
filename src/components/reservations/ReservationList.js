@@ -1,119 +1,82 @@
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
+import useReservationStore from '../../store/reservationStore';
 import { FaSearch, FaEdit, FaTrash, FaRedo } from 'react-icons/fa';
-import theme from '../../styles/theme';
 import ReservationModal from './ReservationModal';
-import { Button, Select, Input, Pagination } from '../common/FormComponents';
+import { 
+  Button, 
+  Select, 
+  Input, 
+  PaginationButtons, 
+  PaginationButton,
+  Pagination 
+} from '../common/FormComponents';
+import { BOOKING_SOURCES, STAY_TYPES } from '../../constants/reservation';
 
-// 예약 경로 상수
-const BOOKING_SOURCES = [
-  '직접예약',
-  '에어비앤비',
-  '야놀자',
-  '여기어때',
-  '부킹닷컴',
-  '아고다',
-  '기타'
-];
+const ReservationList = () => {
+  // zustand store 사용
+  const { 
+    reservations, 
+    fetchReservations,
+    deleteReservation,
+    addReservation,
+    updateReservation,
+    isLoading,
+    error 
+  } = useReservationStore();
 
-// 숙박 유형 상수
-const STAY_TYPES = [
-  '대실',
-  '숙박',
-  '장기'
-];
-
-const ReservationList = ({ reservations, setReservations }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState(null);
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [listSize, setListSize] = useState(10);
-  const [bookingSource, setBookingSource] = useState('all');
-  const [stayType, setStayType] = useState('all');
-  const [searchType, setSearchType] = useState('reservationNumber');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  // 로컬 상태들
   const [filteredReservations, setFilteredReservations] = useState([]);
   const [totalFilteredReservations, setTotalFilteredReservations] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchType, setSearchType] = useState('reservationNumber');
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return today;
+  });
+  const [bookingSource, setBookingSource] = useState('all');
+  const [stayType, setStayType] = useState('all');
+  const [listSize, setListSize] = useState(10);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState(null);
 
+  // 컴포넌트 마운트 시 예약 데이터 로드
   useEffect(() => {
     fetchReservations();
-  }, []);
+  }, [fetchReservations]);
 
-  const fetchReservations = async () => {
-    try {
-      const response = await fetch('/api/reservations');
-      const data = await response.json();
-      setReservations(data.reservations);
-    } catch (error) {
-      console.error('예약 데이터를 불러오는 데 실패했습니다:', error);
-    }
-  };
+  // 검색 및 필터링 로직
+  const handleSearch = useCallback(() => {
+    if (!Array.isArray(reservations)) return;
 
-  useEffect(() => {
-    handleSearch();
-  }, [startDate, endDate, bookingSource, stayType, listSize, currentPage, searchTerm]);
-
-  const handleOpenModal = (reservation = null) => {
-    setSelectedReservation(reservation);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedReservation(null);
-  };
-
-  const handleSaveReservation = async (reservationData) => {
-    try {
-      const method = selectedReservation ? 'PUT' : 'POST';
-      const url = '/api/reservations' + (selectedReservation ? `/${selectedReservation.id}` : '');
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reservationData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'API 요청 실패');
-      }
-
-      await fetchReservations();
-      setIsModalOpen(false);
-    } catch (error) {
-      console.error('예약 저장 중 오류 발생:', error);
-      alert(error.message || '예약 저장에 실패했습니다. 다시 시도해주세요.');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm('예약을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-      try {
-        const response = await fetch('/api/reservations', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: [id] }),
-        });
-        if (!response.ok) throw new Error('API 요청 실패');
-        await fetchReservations();
-      } catch (error) {
-        console.error('예약 삭제 중 오류 발생:', error);
-        alert('예약 삭제에 실패했습니다. 다시 시도해주세요.');
-      }
-    }
-  };
-
-  const handleSearch = () => {
     let filtered = [...reservations];
     
     // 날짜 필터링
-    filtered = filtered.filter(reservation => {
-      const checkIn = new Date(reservation.check_in);
-      return checkIn >= startDate && checkIn <= endDate;
-    });
+    if (startDate && endDate) {
+      filtered = filtered.filter(reservation => {
+        if (!reservation.check_in) return false;
+        
+        const checkIn = new Date(reservation.check_in);
+        checkIn.setHours(0, 0, 0, 0);
+        
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        
+        return checkIn >= start && checkIn <= end;
+      });
+    }
 
     // 예약 경로 필터링
     if (bookingSource !== 'all') {
@@ -130,11 +93,11 @@ const ReservationList = ({ reservations, setReservations }) => {
       filtered = filtered.filter(r => {
         switch (searchType) {
           case 'reservationNumber':
-            return r.reservation_number.includes(searchTerm);
+            return r.reservation_number?.includes(searchTerm);
           case 'guestName':
-            return r.guest_name.includes(searchTerm);
+            return r.guest_name?.includes(searchTerm);
           case 'phone':
-            return r.phone.includes(searchTerm);
+            return r.phone?.includes(searchTerm);
           default:
             return true;
         }
@@ -147,62 +110,132 @@ const ReservationList = ({ reservations, setReservations }) => {
     const start = (currentPage - 1) * listSize;
     const end = start + listSize;
     setFilteredReservations(filtered.slice(start, end));
-  };
+  }, [reservations, startDate, endDate, bookingSource, stayType, searchType, searchTerm, currentPage, listSize]);
 
-  const handleFilterChange = (filterType, value) => {
-    switch(filterType) {
-      case 'bookingSource':
-        setBookingSource(value);
-        break;
-      case 'stayType':
-        setStayType(value);
-        break;
-      case 'searchType':
-        setSearchType(value);
-        break;
-      case 'searchTerm':
-        setSearchTerm(value);
-        break;
-    }
-    setCurrentPage(1);
-  };
+  // 필터 변경 시 검색 실행
+  useEffect(() => {
+    handleSearch();
+  }, [handleSearch]);
 
-  const handleQuickDate = (days) => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    setStartDate(start);
-    setEndDate(end);
-  };
-
+  // 필터 초기화
   const handleResetFilters = () => {
-    setStartDate(new Date());
-    setEndDate(new Date());
+    const today = new Date();
+    setStartDate(new Date(today.setHours(0, 0, 0, 0)));
+    setEndDate(new Date(today.setHours(23, 59, 59, 999)));
     setBookingSource('all');
     setStayType('all');
     setSearchType('reservationNumber');
     setSearchTerm('');
     setCurrentPage(1);
-    setListSize(10);
-    handleSearch();
   };
 
-  const totalPages = Math.ceil(totalFilteredReservations.length / listSize);
+  // 빠른 날짜 선택 (미래 날짜)
+  const handleQuickDate = (days) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setStartDate(today);
+
+    const end = new Date();
+    end.setDate(end.getDate() + days); // 오늘부터 N일 후까지
+    end.setHours(23, 59, 59, 999);
+    setEndDate(end);
+  };
+
+  // 필터 변경 핸들러
+  const handleFilterChange = (type, value) => {
+    switch (type) {
+      case 'listSize':
+        setListSize(value);
+        setCurrentPage(1);
+        break;
+      case 'bookingSource':
+        setBookingSource(value);
+        setCurrentPage(1);
+        break;
+      case 'stayType':
+        setStayType(value);
+        setCurrentPage(1);
+        break;
+      case 'searchType':
+        setSearchType(value);
+        setCurrentPage(1);
+        break;
+      case 'searchTerm':
+        setSearchTerm(value);
+        setCurrentPage(1);
+        break;
+      default:
+        break;
+    }
+  };
+
+  // 예약 삭제 핸들러
+  const handleDelete = async (id) => {
+    if (window.confirm('정말로 이 예약을 삭제하시겠습니까?')) {
+      try {
+        await deleteReservation(id);
+        // 삭제 후 필터링된 목록도 업데이트
+        setFilteredReservations(prev => prev.filter(r => r.id !== id));
+        setTotalFilteredReservations(prev => prev.filter(r => r.id !== id));
+        
+        // 현재 페이지에 항목이 없으면 이전 페이지로 이동
+        const remainingItems = filteredReservations.length - 1;
+        if (remainingItems === 0 && currentPage > 1) {
+          setCurrentPage(prev => prev - 1);
+        }
+      } catch (error) {
+        console.error('예약 삭제 실패:', error);
+        alert('예약 삭제에 실패했습니다.');
+      }
+    }
+  };
+
+  // 모달 열기
+  const handleOpenModal = (reservation) => {
+    setSelectedReservation(reservation);
+    setIsModalOpen(true);
+  };
+
+  // 예약 저장 핸들러
+  const handleSaveReservation = async (reservationData) => {
+    try {
+      if (reservationData.id) {
+        await updateReservation(reservationData.id, reservationData);
+      } else {
+        await addReservation(reservationData);
+      }
+      handleSearch(); // 목록 새로고침
+    } catch (error) {
+      console.error('예약 저장 실패:', error);
+      throw error;
+    }
+  };
+
+  // 날짜 포맷팅
+  const formatDateTime = (date, time) => {
+    if (!date) return '';
+    const formattedDate = new Date(date).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    return time ? `${formattedDate} ${time}` : formattedDate;
+  };
 
   return (
-    <StyledContent >
+    <StyledContent>
       <ControlPanel>
-        <ControlGroup>
-          <PaginationContainer>
-            <Select value={listSize} onChange={(e) => handleFilterChange('listSize', Number(e.target.value))}>
-              <option value={10}>10개씩 보기</option>
-              <option value={20}>20개씩 보기</option>
-              <option value={30}>30개씩 보기</option>
-              <option value={50}>50개씩 보기</option>
-            </Select>
-          </PaginationContainer>
-        </ControlGroup>
-        <ControlGroup>
+        <LeftControlGroup>
+          <Select 
+            value={listSize} 
+            onChange={(e) => handleFilterChange('listSize', Number(e.target.value))}
+          >
+            <option value={10}>10개씩</option>
+            <option value={20}>20개씩</option>
+            <option value={30}>30개씩</option>
+            <option value={50}>50개씩</option>
+          </Select>
+
           <DateRangeContainer>
             <Input
               type="date"
@@ -216,27 +249,40 @@ const ReservationList = ({ reservations, setReservations }) => {
               onChange={(e) => setEndDate(new Date(e.target.value))}
             />
           </DateRangeContainer>
+
           <QuickDateButtons>
             <Button onClick={() => handleQuickDate(7)}>7일</Button>
             <Button onClick={() => handleQuickDate(30)}>30일</Button>
             <Button onClick={() => handleQuickDate(90)}>90일</Button>
           </QuickDateButtons>
-        </ControlGroup>
-        <ControlGroup>
-          <Select value={bookingSource} onChange={(e) => handleFilterChange('bookingSource', e.target.value)}>
+        </LeftControlGroup>
+
+        <RightControlGroup>
+          <Select 
+            value={bookingSource} 
+            onChange={(e) => handleFilterChange('bookingSource', e.target.value)}
+          >
             <option value="all">전체 예약경로</option>
             {BOOKING_SOURCES.map(source => (
               <option key={source} value={source}>{source}</option>
             ))}
           </Select>
-          <Select value={stayType} onChange={(e) => handleFilterChange('stayType', e.target.value)}>
+
+          <Select 
+            value={stayType} 
+            onChange={(e) => handleFilterChange('stayType', e.target.value)}
+          >
             <option value="all">전체 숙박유형</option>
             {STAY_TYPES.map(type => (
               <option key={type} value={type}>{type}</option>
             ))}
           </Select>
+
           <SearchContainer>
-            <Select value={searchType} onChange={(e) => handleFilterChange('searchType', e.target.value)}>
+            <Select 
+              value={searchType} 
+              onChange={(e) => handleFilterChange('searchType', e.target.value)}
+            >
               <option value="reservationNumber">예약번호</option>
               <option value="guestName">예약자명</option>
               <option value="phone">연락처</option>
@@ -251,64 +297,117 @@ const ReservationList = ({ reservations, setReservations }) => {
               <FaSearch />
             </Button>
           </SearchContainer>
-          <Button onClick={handleResetFilters}>
-            <FaRedo /> 초기화
-          </Button>
-        </ControlGroup>
-      </ControlPanel>
-      <ReservationTable>
-        <thead>
-          <tr>
-            <th>예약번호</th>
-            <th>객실번호</th>
-            <th>체크인</th>
-            <th>체크아웃</th>
-            <th>예약자명</th>
-            <th>연락처</th>
-            <th>예약경로</th>
-            <th>숙박유형</th>
-            <th>상태</th>
-            <th>액션</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredReservations.map(reservation => (
-            <tr key={reservation.id}>
-              <TableCell>{reservation.reservation_number}</TableCell>
-              <TableCell>{reservation.room_number}</TableCell>
-              <TableCell>{new Date(reservation.check_in).toLocaleString()}</TableCell>
-              <TableCell>{new Date(reservation.check_out).toLocaleString()}</TableCell>
-              <TableCell>{reservation.guest_name}</TableCell>
-              <TableCell>{reservation.phone}</TableCell>
-              <TableCell>{reservation.booking_source}</TableCell>
-              <TableCell>{reservation.stay_type}</TableCell>
-              <TableCell>{reservation.status}</TableCell>
-              <TableCell>
-                <ActionButtonGroup>
-                  <ActionButton onClick={() => handleOpenModal(reservation)}><FaEdit /></ActionButton>
-                  <ActionButton onClick={() => handleDelete(reservation.id)}><FaTrash /></ActionButton>
-                </ActionButtonGroup>
-              </TableCell>
-            </tr>
-          ))}
-        </tbody>
-      </ReservationTable>
 
-      <Pagination
-        currentPage={currentPage}
-        totalItems={totalFilteredReservations.length}
-        itemsPerPage={listSize}
-        onPageChange={setCurrentPage}
-      />
+          <Button onClick={handleResetFilters}>
+            <FaRedo />
+          </Button>
+        </RightControlGroup>
+      </ControlPanel>
+
+      {isLoading ? (
+        <LoadingSpinner>데이터를 불러오는 중...</LoadingSpinner>
+      ) : error ? (
+        <ErrorMessage>에러: {error}</ErrorMessage>
+      ) : filteredReservations.length > 0 ? (
+        <ReservationTable>
+          <thead>
+            <tr>
+              <th>예약번호</th>
+              <th>객실번호</th>
+              <th>체크인</th>
+              <th>체크아웃</th>
+              <th>예약자명</th>
+              <th>연락처</th>
+              <th>예약경로</th>
+              <th>숙박유형</th>
+              <th>액션</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredReservations.map(reservation => (
+              <tr key={reservation.id}>
+                <TableCell>{reservation.reservation_number}</TableCell>
+                <TableCell>{reservation.room_number}</TableCell>
+                <TableCell>
+                  {formatDateTime(reservation.check_in, reservation.check_in_time)}
+                </TableCell>
+                <TableCell>
+                  {formatDateTime(reservation.check_out, reservation.check_out_time)}
+                </TableCell>
+                <TableCell>{reservation.guest_name}</TableCell>
+                <TableCell>{reservation.phone}</TableCell>
+                <TableCell>{reservation.booking_source}</TableCell>
+                <TableCell>{reservation.stay_type}</TableCell>
+                <TableCell>
+                  <ActionButtonGroup>
+                    <ActionButton onClick={() => handleOpenModal(reservation)}>
+                      <FaEdit />
+                    </ActionButton>
+                    <ActionButton 
+                      onClick={() => handleDelete(reservation.id)}
+                      title="예약 삭제"
+                    >
+                      <FaTrash />
+                    </ActionButton>
+                  </ActionButtonGroup>
+                </TableCell>
+              </tr>
+            ))}
+          </tbody>
+        </ReservationTable>
+      ) : (
+        <EmptyMessage>예약 내역이 없습니다.</EmptyMessage>
+      )}
 
       {isModalOpen && (
         <ReservationModal
           reservation={selectedReservation}
-          onClose={handleCloseModal}
-          onSave={handleSaveReservation}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedReservation(null);
+          }}
+          onSave={async (savedData) => {
+            await handleSaveReservation(savedData);
+            setIsModalOpen(false);
+            setSelectedReservation(null);
+          }}
         />
       )}
-    </StyledContent >
+
+      <PaginationButtons>
+        <PaginationButton 
+          onClick={() => setCurrentPage(1)} 
+          disabled={currentPage === 1}
+        >
+          처음
+        </PaginationButton>
+        <PaginationButton 
+          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+          disabled={currentPage === 1}
+        >
+          이전
+        </PaginationButton>
+        
+        <span style={{ margin: '0 10px', color: '#6c757d' }}>
+          {currentPage} / {Math.ceil(totalFilteredReservations.length / listSize)}
+        </span>
+        
+        <PaginationButton 
+          onClick={() => setCurrentPage(prev => 
+            Math.min(Math.ceil(totalFilteredReservations.length / listSize), prev + 1)
+          )}
+          disabled={currentPage >= Math.ceil(totalFilteredReservations.length / listSize)}
+        >
+          다음
+        </PaginationButton>
+        <PaginationButton 
+          onClick={() => setCurrentPage(Math.ceil(totalFilteredReservations.length / listSize))}
+          disabled={currentPage >= Math.ceil(totalFilteredReservations.length / listSize)}
+        >
+          마지막
+        </PaginationButton>
+      </PaginationButtons>
+    </StyledContent>
   );
 };
 
@@ -321,90 +420,140 @@ const StyledContent = styled.div`
 
 const ControlPanel = styled.div`
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
   margin-bottom: 20px;
-  flex-wrap: nowrap;
-  height: 40px;
+  gap: 16px;
+  
+  @media (max-width: 1200px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 `;
 
-const ControlGroup = styled.div`
+const LeftControlGroup = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 100%;
+  gap: 8px;
+  flex-wrap: nowrap;
+`;
+
+const RightControlGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
 `;
 
 const DateRangeContainer = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
+  
+  span {
+    color: #6c757d;
+  }
 `;
 
 const QuickDateButtons = styled.div`
   display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 100%;
+  gap: 4px;
 `;
 
 const SearchContainer = styled.div`
   display: flex;
   align-items: center;
-  gap: 5px;
-  height: 100%;
+  gap: 4px;
+  min-width: 300px;
 `;
 
 const ReservationTable = styled.table`
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 20px;
+  margin-top: 20px;
+  background-color: white;
 
   th, td {
-    border: 1px solid #ddd;
-    padding: 8px;
+    padding: 12px;
     text-align: center;
+    border-bottom: 1px solid #eee;
   }
 
   th {
-    background-color: #f2f2f2;
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
   }
-`;
 
-const PaginationContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+
+  @media (max-width: 1024px) {
+    display: block;
+    overflow-x: auto;
+  }
 `;
 
 const ActionButtonGroup = styled.div`
   display: flex;
+  gap: 8px;
   justify-content: center;
-  gap: 5px;
 `;
 
 const ActionButton = styled.button`
-  background-color: ${theme.colors.buttonSecondary.background};
-  color: ${theme.colors.buttonSecondary.text};
+  background: none;
   border: none;
-  border-radius: 4px;
-  padding: 5px 10px;
+  padding: 6px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  color: #6c757d;
+  border-radius: 4px;
+  transition: all 0.2s;
 
   &:hover {
-    background-color: ${theme.colors.buttonSecondary.hover};
+    background-color: #e9ecef;
+    color: #495057;
   }
 
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 2px ${theme.colors.buttonSecondary.focus};
+    box-shadow: 0 0 0 2px rgba(108, 117, 125, 0.25);
   }
 `;
 
 const TableCell = styled.td`
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
   text-align: center;
-  vertical-align: middle;
+`;
+
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: #007bff;
+`;
+
+const ErrorMessage = styled.div`
+  color: #dc3545;
+  text-align: center;
+  padding: 20px;
+  background-color: #f8d7da;
+  border-radius: 4px;
+  margin: 20px 0;
+`;
+
+const EmptyMessage = styled.div`
+  text-align: center;
+  padding: 40px;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  margin: 20px 0;
 `;
 
 export default ReservationList;
