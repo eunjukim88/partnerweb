@@ -3,31 +3,20 @@ import styled from 'styled-components';
 import { FaClock } from 'react-icons/fa';
 import theme from '../../styles/theme';
 import { Button, Input } from '../common/FormComponents';
-import axios from 'axios';
+import useReservationSettingsStore, { stayTypeMap } from '../../store/reservationSettingsStore';
 
-// formatTimeToAmPm 함수 추가
-const formatTimeToAmPm = (timeStr) => {
-  if (!timeStr) return '';
-  const [hours, minutes] = timeStr.split(':');
-  let hour = parseInt(hours);
-  const period = hour >= 12 ? '오후' : '오전';
-  
-  if (hour > 12) {
-    hour -= 12;
-  } else if (hour === 0) {
-    hour = 12;
-  }
-  
-  return `${period}:${hour.toString().padStart(2, '0')}:${minutes}`;
-};
-
-// 커스텀 시간 선택 컴포넌트
+/**
+ * 시간 선택 컴포넌트
+ * @param {string} value - 선택된 시간 (형식: "오전/오후:HH:MM")
+ * @param {function} onChange - 시간 변경 핸들러
+ * @param {boolean} disabled - 비활성화 여부
+ */
 const TimeSelector = ({ value, onChange, disabled }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef();
 
   // 10분 단위 배열 생성
-  const minuteOptions = Array.from({ length: 6 }, (_, i) => (i * 10).toString().padStart(2, '0'));
+  const minuteOptions = Array.from({ length: 6 }, (_, i) => (i * 10).toString().padStart(2, '0'));ㅡ
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -115,103 +104,87 @@ const TimeSelector = ({ value, onChange, disabled }) => {
   );
 };
 
-const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEdit }) => {
-  console.log('SettingForm render:', { type, settings, isEditing });
+/**
+ * 설정 폼 컴포넌트
+ * @param {string} type - 숙박 유형 (대실/숙박/장기)
+ * @param {object} settings - 현재 설정 데이터
+ * @param {function} onSettingsChange - 설정 변경 핸들러
+ * @param {function} onSave - 저장 핸들러
+ * @param {boolean} isEditing - 수정 모드 여부
+ * @param {function} onEdit - 수정 모드 전환 핸들러
+ * @param {boolean} isLoading - 로딩 상태
+ */
+const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEdit, isLoading }) => {
+  /**
+   * 24시간 형식을 12시간 형식으로 변환
+   * @param {string} timeStr - "HH:MM" 형식의 시간
+   * @returns {string} "오전/오후:HH:MM" 형식의 시간
+   */
+  const formatTimeToAmPm = (timeStr) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    let hour = parseInt(hours);
+    const period = hour >= 12 ? '오후' : '오전';
+    
+    if (hour > 12) hour -= 12;
+    if (hour === 0) hour = 12;
+    
+    return `${period}:${hour.toString().padStart(2, '0')}:${minutes}`;
+  };
 
-  const handleDaySelect = (day) => {
-    if (!isEditing) {
-      console.log('Day selection blocked: not in edit mode');
-      return;
-    }
-
-    const currentDays = settings.selectedDays || [];
-    const newDays = currentDays.includes(day)
-      ? currentDays.filter(d => d !== day)
-      : [...currentDays, day].sort((a, b) => {
-          const order = ['월', '화', '수', '목', '금', '토', '일'];
-          return order.indexOf(a) - order.indexOf(b);
-        });
-
-    console.log('Day selection:', {
-      day,
-      currentDays,
-      newDays,
-      isEditing
-    });
-
+  /**
+   * 시간 변경 핸들러
+   * @param {string} field - 변경할 필드 (check_in_time/check_out_time)
+   * @param {string} time - 새로운 시간 값
+   */
+  const handleTimeChange = (field, time) => {
+    if (!isEditing) return;
+    
+    const [period, hour, minute] = time.split(':');
+    let hours = parseInt(hour);
+    if (period === '오후' && hours !== 12) hours += 12;
+    if (period === '오전' && hours === 12) hours = 0;
+    
+    const formattedTime = `${hours.toString().padStart(2, '0')}:${minute}`;
     onSettingsChange({
       ...settings,
-      selectedDays: newDays
+      [field]: formattedTime
     });
   };
 
+  /**
+   * 요금 변경 핸들러
+   * @param {string} field - 변경할 필드 (weekdayPrice/fridayPrice/weekendPrice)
+   */
   const handlePriceChange = (field) => (e) => {
-    let value = e.target.value;
+    let value = e.target.value.replace(/[^\d]/g, '');
+    value = value ? parseInt(value) : 0;
     
-    // 숫자만 추출
-    const numericValue = value.replace(/[^\d]/g, '');
-    
-    // 숫자가 있는 경우에만 포맷팅
-    if (numericValue) {
-      // 천단위 콤마 추가
-      value = Number(numericValue).toLocaleString('ko-KR');
-    } else {
-      value = '';
-    }
-
     onSettingsChange({
       ...settings,
-      [field]: value
+      [field === 'weekdayPrice' ? 'weekday_rate' : 
+       field === 'fridayPrice' ? 'friday_rate' : 'weekend_rate']: value
     });
   };
 
-  // 요일 선택 여부에 따른 가격 입력 활성화 상태 계산
-  const isWeekdayEnabled = ['월', '화', '수', '목'].some(day => settings.selectedDays.includes(day));
-  const isFridayEnabled = settings.selectedDays.includes('금');
-  const isWeekendEnabled = settings.selectedDays.includes('토') || settings.selectedDays.includes('일');
+  /**
+   * 요일 선택 처리
+   * @param {string} day - 선택한 요일
+   */
+  const handleDaySelect = (day) => {
+    if (!isEditing) return;
 
-  // 요일 선택 상태에 따라 가격 자동 설정
-  useEffect(() => {
-    const newSettings = { ...settings };
-    if (!isWeekdayEnabled) newSettings.weekdayPrice = '0';
-    if (!isFridayEnabled) newSettings.fridayPrice = '0';
-    if (!isWeekendEnabled) newSettings.weekendPrice = '0';
-    onSettingsChange(newSettings);
-  }, [settings.selectedDays]);
+    const dayNumber = Object.entries(dayMapping).find(([_, value]) => value === day)[0];
+    const currentDuration = settings.default_duration;
+    const newDuration = currentDuration ^ (1 << (dayNumber - 1));
 
-  const validateSettings = () => {
-    // 선택된 요일에 대한 요금 검증
-    if (isWeekdayEnabled && parseInt(settings.weekdayPrice.replace(/,/g, '')) === 0) {
-      alert('평일(월~목) 이용금액을 작성해주세요.');
-      return false;
-    }
-    
-    if (isFridayEnabled && parseInt(settings.fridayPrice.replace(/,/g, '')) === 0) {
-      alert('금요일 이용금액을 작성해주세요.');
-      return false;
-    }
-    
-    if (isWeekendEnabled && parseInt(settings.weekendPrice.replace(/,/g, '')) === 0) {
-      alert('주말 이용금액을 작성해주세요.');
-      return false;
-    }
-
-    return true;
+    onSettingsChange({
+      ...settings,
+      default_duration: newDuration
+    });
   };
 
-  const handleSaveClick = async () => {
-    if (!validateSettings()) {
-      return;
-    }
-
-    try {
-      await onSave();
-      // 저장 성공 시 알림 제거 (기존 API에서 이미 알림을 보여주므로)
-    } catch (error) {
-      console.error('설정 저장 실패:', error);
-      alert('설정 저장에 실패했습니다.');
-    }
-  };
+  if (!settings) return null;
 
   return (
     <SettingsContainer>
@@ -223,7 +196,7 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
               key={day}
               type="button"
               onClick={() => handleDaySelect(day)}
-              selected={settings.selectedDays?.includes(day)}
+              selected={getSelectedDays(settings.default_duration).includes(day)}
               disabled={!isEditing}
               isEditing={isEditing}
             >
@@ -232,23 +205,22 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
           ))}
         </DayContainer>
       </Section>
-
       <Section>
         <SectionTitle>{type} 예약 시간 설정</SectionTitle>
         <TimeContainer>
           <InputGroup>
             <Label>체크인</Label>
             <TimeSelector 
-              value={settings.checkInTime}
-              onChange={(time) => isEditing && onSettingsChange({ ...settings, checkInTime: time })}
+              value={formatTimeToAmPm(settings.check_in_time)}
+              onChange={(time) => handleTimeChange('check_in_time', time)}
               disabled={!isEditing}
             />
           </InputGroup>
           <InputGroup>
             <Label>체크아웃</Label>
             <TimeSelector 
-              value={settings.checkOutTime}
-              onChange={(time) => isEditing && onSettingsChange({ ...settings, checkOutTime: time })}
+              value={formatTimeToAmPm(settings.check_out_time)}
+              onChange={(time) => handleTimeChange('check_out_time', time)}
               disabled={!isEditing}
             />
           </InputGroup>
@@ -263,9 +235,9 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
             <PriceInputWrapper>
               <StyledInput
                 type="text"
-                value={settings.weekdayPrice}
+                value={settings.weekday_rate.toLocaleString()}
                 onChange={handlePriceChange('weekdayPrice')}
-                disabled={!isEditing || !isWeekdayEnabled}
+                disabled={!isEditing}
               />
               <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
@@ -276,9 +248,9 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
             <PriceInputWrapper>
               <StyledInput
                 type="text"
-                value={settings.fridayPrice}
+                value={settings.friday_rate.toLocaleString()}
                 onChange={handlePriceChange('fridayPrice')}
-                disabled={!isEditing || !isFridayEnabled}
+                disabled={!isEditing}
               />
               <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
@@ -289,9 +261,9 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
             <PriceInputWrapper>
               <StyledInput
                 type="text"
-                value={settings.weekendPrice}
+                value={settings.weekend_rate.toLocaleString()}
                 onChange={handlePriceChange('weekendPrice')}
-                disabled={!isEditing || !isWeekendEnabled}
+                disabled={!isEditing}
               />
               <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
@@ -301,324 +273,85 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
 
       <ButtonContainer>
         {isEditing ? (
-          <SaveButton onClick={handleSaveClick}>저장하기</SaveButton>
+          <SaveButton onClick={onSave} disabled={isLoading}>
+            저장
+          </SaveButton>
         ) : (
-          <EditButton onClick={() => onEdit(type)}>수정하기</EditButton>
+          <EditButton onClick={onEdit} disabled={isLoading}>
+            수정
+          </EditButton>
         )}
       </ButtonContainer>
     </SettingsContainer>
   );
 };
 
-// 상수 정의
-const stayTypeMap = {
-  '대실': 'hourly',
-  '숙박': 'nightly',
-  '장기': 'longTerm'
-};
-
+/**
+ * 예약 설정 메인 컴포넌트
+ * - 숙박 유형별 설정 관리 (대실/숙박/장기)
+ * - 설정 조회/수정/저장 기능
+ */
 const ReservationSettings = () => {
+  // 로컬 상태
   const [activeTab, setActiveTab] = useState('대실');
   const [editingType, setEditingType] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [settings, setSettings] = useState({
-    hourly: {
-      selectedDays: [],
-      checkInTime: '오전:11:00',
-      checkOutTime: '오후:04:00',
-      weekdayPrice: '0',
-      fridayPrice: '0',
-      weekendPrice: '0'
-    },
-    nightly: {
-      selectedDays: [],
-      checkInTime: '오후:03:00',
-      checkOutTime: '오전:11:00',
-      weekdayPrice: '0',
-      fridayPrice: '0',
-      weekendPrice: '0'
-    },
-    longTerm: {
-      selectedDays: [],
-      checkInTime: '오후:03:00',
-      checkOutTime: '오전:11:00',
-      weekdayPrice: '0',
-      fridayPrice: '0',
-      weekendPrice: '0'
+  const [localSettings, setLocalSettings] = useState({});
+  
+  // store에서 상태와 액션 가져오기
+  const { settings, isLoading, error, fetchSettings, updateSettings } = useReservationSettingsStore();
+
+  // 초기 데이터 로드
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  // 전역 상태 변경 시 로컬 상태 업데이트
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
     }
-  });
+  }, [settings]);
 
-  // 시간 변환 함수 수정
-  const convertTimeFormat = (timeStr) => {
-    console.log('Converting time:', timeStr); // 디버깅용
-
-    if (!timeStr || typeof timeStr !== 'string') {
-      console.error('Invalid time string:', timeStr);
-      return '00:00:00';
-    }
-
-    try {
-      // "오전:11:00" 형식 처리
-      const parts = timeStr.split(':');
-      console.log('Time parts:', parts); // 디버깅용
-
-      const period = parts[0]; // '오전' 또는 '오후'
-      const hour = parseInt(parts[1]); // 시간
-      const minute = parseInt(parts[2]); // 분
-
-      if (isNaN(hour) || isNaN(minute)) {
-        throw new Error(`Invalid time format: ${timeStr}`);
+  /**
+   * 설정 변경 핸들러
+   * @param {object} newSettings - 새로운 설정 데이터
+   */
+  const handleSettingsChange = (newSettings) => {
+    const mappedType = stayTypeMap[activeTab];
+    setLocalSettings(prev => ({
+      ...prev,
+      [mappedType]: {
+        ...prev[mappedType],
+        ...newSettings
       }
-
-      let hours = hour;
-      if (period === '오후' && hours !== 12) {
-        hours += 12;
-      } else if (period === '오전' && hours === 12) {
-        hours = 0;
-      }
-
-      const formattedTime = `${String(hours).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
-      console.log('Formatted time:', formattedTime); // 디버깅용
-      return formattedTime;
-    } catch (error) {
-      console.error('Time conversion error:', error);
-      return '00:00:00';
-    }
+    }));
   };
 
+  /**
+   * 설정 저장 핸들러
+   * @param {string} type - 숙박 유형 (대실/숙박/장기)
+   */
   const handleSave = async (type) => {
     try {
       const mappedType = stayTypeMap[type];
-      console.log('Current type:', type, 'Mapped type:', mappedType);
-
-      const currentSettings = settings[mappedType];
-      console.log('Current settings:', currentSettings);
-
+      const currentSettings = localSettings[mappedType];
+      
       if (!currentSettings) {
-        throw new Error('설정을 찾을 수 없습니다.');
+        throw new Error('현재 설정을 찾을 수 없습니다.');
       }
 
-      // 시간 데이터 검증 및 변환
-      const checkInTime = currentSettings.checkInTime;
-      const checkOutTime = currentSettings.checkOutTime;
-
-      console.log('Raw times:', { checkInTime, checkOutTime });
-
-      if (!checkInTime || !checkOutTime) {
-        throw new Error('체크인/체크아웃 시간이 설정되지 않았습니다.');
-      }
-
-      const formattedCheckInTime = convertTimeFormat(checkInTime);
-      const formattedCheckOutTime = convertTimeFormat(checkOutTime);
-
-      console.log('Formatted times:', {
-        formattedCheckInTime,
-        formattedCheckOutTime
-      });
-
-      // 요일 변환
-      const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 7 };
-      const availableDays = currentSettings.selectedDays.map(day => dayMap[day]).sort((a, b) => a - b);
-
-      const requestData = {
-        stay_type: mappedType,
-        available_days: availableDays,
-        check_in_time: formattedCheckInTime,
-        check_out_time: formattedCheckOutTime,
-        base_rate: {
-          weekday: parseInt(currentSettings.weekdayPrice.replace(/[,원]/g, '')) || 0,
-          friday: parseInt(currentSettings.fridayPrice.replace(/[,원]/g, '')) || 0,
-          weekend: parseInt(currentSettings.weekendPrice.replace(/[,원]/g, '')) || 0
-        }
-      };
-
-      console.log('Final request data:', requestData);
-
-      const response = await fetch('/api/mypage/reservation-settings', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      const responseData = await response.json();
-      console.log('Response:', response.status, responseData);
-
-      if (!response.ok) {
-        throw new Error(responseData.error || '설정 저장에 실패했습니다.');
-      }
-
-      alert('설정이 성공적으로 저장되었습니다.');
+      await updateSettings(type, currentSettings);
       setEditingType(null);
-      fetchSettings();
+      alert('설정이 성공적으로 저장되었습니다.');
     } catch (error) {
       console.error('설정 저장 실패:', error);
       alert('설정 저장에 실패했습니다: ' + error.message);
     }
   };
 
-  // fetchSettings 함수도 수정
-  const fetchSettings = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/api/mypage/reservation-settings');
-      
-      if (!response.ok) {
-        throw new Error('설정을 불러오는데 실패했습니다.');
-      }
-
-      const data = await response.json();
-      
-      // 설정 데이터 초기화
-      const formattedSettings = {
-        hourly: {
-          id: null,
-          selectedDays: [],
-          checkInTime: '오전:11:00',
-          checkOutTime: '오후:04:00',
-          weekdayPrice: '0',
-          fridayPrice: '0',
-          weekendPrice: '0',
-          created_at: null,
-          updated_at: null
-        },
-        nightly: {
-          id: null,
-          selectedDays: [],
-          checkInTime: '오후:03:00',
-          checkOutTime: '오전:11:00',
-          weekdayPrice: '0',
-          fridayPrice: '0',
-          weekendPrice: '0',
-          created_at: null,
-          updated_at: null
-        },
-        longTerm: {
-          id: null,
-          selectedDays: [],
-          checkInTime: '오후:03:00',
-          checkOutTime: '오전:11:00',
-          weekdayPrice: '0',
-          fridayPrice: '0',
-          weekendPrice: '0',
-          created_at: null,
-          updated_at: null
-        }
-      };
-
-      // 서버에서 받은 데이터로 설정 업데이트
-      if (Array.isArray(data)) {
-        data.forEach(item => {
-          const dayMap = {1:'월', 2:'화', 3:'수', 4:'목', 5:'금', 6:'토', 7:'일'};
-          const type = item.stay_type;
-
-          if (formattedSettings[type]) {
-            formattedSettings[type] = {
-              id: item.id,
-              selectedDays: Array.isArray(item.available_days) 
-                ? item.available_days.map(day => dayMap[day])
-                : [],
-              checkInTime: formatTimeToAmPm(item.check_in_time),
-              checkOutTime: formatTimeToAmPm(item.check_out_time),
-              weekdayPrice: item.base_rate?.weekday?.toLocaleString() || '0',
-              fridayPrice: item.base_rate?.friday?.toLocaleString() || '0',
-              weekendPrice: item.base_rate?.weekend?.toLocaleString() || '0',
-              created_at: item.created_at,
-              updated_at: item.updated_at
-            };
-          }
-        });
-      }
-      
-      setSettings(formattedSettings);
-    } catch (error) {
-      console.error('설정 로딩 실패:', error);
-      alert('설정을 불러오는데 실패했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 설정 데이터 로딩
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        setIsLoading(true);
-        const response = await axios.get('/api/mypage/reservation-settings');
-        console.log('API Response:', response.data);
-
-        if (response.data) {
-          const formattedSettings = { ...settings };
-          
-          response.data.forEach(item => {
-            const dayMap = {1:'월', 2:'화', 3:'수', 4:'목', 5:'금', 6:'토', 7:'일'};
-            const mappedType = stayTypeMap[item.stay_type] || item.stay_type;
-
-            if (mappedType && formattedSettings[mappedType]) {
-              formattedSettings[mappedType] = {
-                selectedDays: Array.isArray(item.available_days) 
-                  ? item.available_days.map(day => dayMap[day])
-                  : [],
-                checkInTime: formatTimeToAmPm(item.check_in_time) || formattedSettings[mappedType].checkInTime,
-                checkOutTime: formatTimeToAmPm(item.check_out_time) || formattedSettings[mappedType].checkOutTime,
-                weekdayPrice: item.base_rate?.weekday?.toLocaleString() || '0',
-                fridayPrice: item.base_rate?.friday?.toLocaleString() || '0',
-                weekendPrice: item.base_rate?.weekend?.toLocaleString() || '0'
-              };
-            }
-          });
-          
-          console.log('Formatted Settings:', formattedSettings);
-          setSettings(formattedSettings);
-        }
-      } catch (error) {
-        console.error('설정 로딩 실패:', error);
-        alert('설정을 불러오는데 실패했습니다.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSettings();
-  }, []);
-
-  // 설정 변경 처리
-  const handleSettingsChange = (type, newSettings) => {
-    if (isLoading) return;
-
-    const mappedType = {
-      '대실': 'hourly',
-      '숙박': 'nightly',
-      '장기': 'longTerm'
-    }[type];
-
-    if (!mappedType) {
-      console.error('Invalid type:', type);
-      return;
-    }
-
-    setSettings(prev => {
-      const updated = {
-        ...prev,
-        [mappedType]: {
-          ...prev[mappedType],
-          ...newSettings
-        }
-      };
-      console.log('Updated settings:', updated);
-      return updated;
-    });
-  };
-
-  // 수정 모드 시작 수
-  const handleEdit = (type) => {
-    setEditingType(type);
-  };
-
-  // 로딩 중 표시
-  if (isLoading) {
-    return <div>설정을 불러오는 중...</div>;
+  // 에러 상태 처리
+  if (error) {
+    return <div>에러 발생: {error}</div>;
   }
 
   return (
@@ -636,11 +369,12 @@ const ReservationSettings = () => {
       </TabContainer>
       <SettingForm
         type={activeTab}
-        settings={settings[stayTypeMap[activeTab]]}
-        onSettingsChange={(newSettings) => handleSettingsChange(activeTab, newSettings)}
+        settings={localSettings[stayTypeMap[activeTab]]}
+        onSettingsChange={handleSettingsChange}
         onSave={() => handleSave(activeTab)}
         isEditing={editingType === activeTab}
-        onEdit={() => handleEdit(activeTab)}
+        onEdit={() => setEditingType(activeTab)}
+        isLoading={isLoading}
       />
     </Container>
   );

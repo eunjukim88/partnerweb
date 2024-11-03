@@ -89,6 +89,12 @@ const RoomCard = ({ room, displaySettings }) => { // RoomCard 컴포넌트 정�
 
   const checkInStatus = getCheckInStatus(room); // 체크인 상태 변수 설정
 
+  const formatTime = (time) => {
+    if (!time) return '';
+    const [hours, minutes] = time.split(':');
+    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+  };
+
   return (
     <CardContainer status={room.status || 'vacant'}> 
       <RoomHeader> {/* 방 헤더 섹션 */}
@@ -104,9 +110,9 @@ const RoomCard = ({ room, displaySettings }) => { // RoomCard 컴포넌트 정�
       </RoomHeader>
       <StatusSection> {/* 상태 섹션 */}
         <CheckInStatus>
-          {room.checkInStatus && (
+          {room.status && room.status !== 'vacant' && (
             <>
-              체크인 | {room.checkInTime}
+              {room.status}
               {room.delay > 0 && (
                 <DelayText> {formatDelayTime(room.delay)} 지연</DelayText>
               )}
@@ -114,9 +120,8 @@ const RoomCard = ({ room, displaySettings }) => { // RoomCard 컴포넌트 정�
           )}
         </CheckInStatus>
       </StatusSection>
-      <RoomStatus>{getStatusText(room.status || 'vacant')}</RoomStatus> {/* 방 상태 텍스트 표시 */}
       <RoomTimes>
-        {room.checkIn && room.checkOut ? `${room.checkIn} | ${room.checkOut}` : '-'}
+        {room.reservation_time}
       </RoomTimes>
       <BottomSection> {/* 하단 섹션 */}
         <MemoSection> {/* 메모 섹션 */}

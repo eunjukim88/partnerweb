@@ -16,6 +16,31 @@ const RoomSettings = () => {
     fetchRooms();
   }, []);
 
+  useEffect(() => {
+    const handleRoomUpdate = (event) => {
+      const updatedRoom = event.detail;
+      setRooms(prevRooms => 
+        prevRooms.map(room => 
+          room.id === updatedRoom.id ? {
+            ...updatedRoom,
+            display: {
+              floor: updatedRoom.show_floor,
+              building: updatedRoom.show_building,
+              name: updatedRoom.show_name,
+              type: updatedRoom.show_type
+            }
+          } : room
+        )
+      );
+    };
+
+    window.addEventListener('roomUpdated', handleRoomUpdate);
+    
+    return () => {
+      window.removeEventListener('roomUpdated', handleRoomUpdate);
+    };
+  }, []);
+
   const fetchRooms = async () => {
     try {
       setLoading(true);
@@ -47,23 +72,31 @@ const RoomSettings = () => {
 
       const updateData = {
         id: roomData.id,
+        floor: roomData.floor || null,
+        building: roomData.building || null,
+        name: roomData.name || null,
         display: {
-          showBuilding: Boolean(roomData.display?.showBuilding),
-          showFloor: Boolean(roomData.display?.showFloor),
-          showName: Boolean(roomData.display?.showName)
-        }
+          floor: Boolean(roomData.display?.showFloor),
+          building: Boolean(roomData.display?.showBuilding),
+          name: Boolean(roomData.display?.showName),
+          type: Boolean(roomData.display?.showType)
+        },
+        salesLimit: roomData.salesLimit || {},
+        rates: roomData.rates || {}
       };
 
       console.log('서버로 보낼 데이터:', updateData);
 
-      const response = await axios.put(`/api/mypage/roomslist`, updateData);
+      const response = await axios.put('/api/mypage/rooms', updateData);
       
       if (response.status === 200) {
         console.log('업데이트 성공:', response.data);
-        fetchRooms(); // 목록 새로고침
+        await fetchRooms(); // 목록 새로고침
+        alert('객실 정보가 성공적으로 업데이트되었습니다.');
       }
     } catch (error) {
       console.error('객실 정보 업데이트 실패:', error);
+      alert('객실 정보 업데이트에 실패했습니다: ' + (error.response?.data?.message || error.message));
     }
   };
 
