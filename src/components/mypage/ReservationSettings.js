@@ -1,108 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { FaClock } from 'react-icons/fa';
 import theme from '../../styles/theme';
 import { Button, Input } from '../common/FormComponents';
-import useReservationSettingsStore, { stayTypeMap } from '../../store/reservationSettingsStore';
-
-/**
- * 시간 선택 컴포넌트
- * @param {string} value - 선택된 시간 (형식: "오전/오후:HH:MM")
- * @param {function} onChange - 시간 변경 핸들러
- * @param {boolean} disabled - 비활성화 여부
- */
-const TimeSelector = ({ value, onChange, disabled }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const ref = useRef();
-
-  // 10분 단위 배열 생성
-  const minuteOptions = Array.from({ length: 6 }, (_, i) => (i * 10).toString().padStart(2, '0'));ㅡ
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (ref.current && !ref.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [ref]);
-
-  const handleSelect = (type, newValue) => {
-    if (disabled) return;
-
-    const [period, timeStr] = value.split(':');
-    const [hour, minute] = timeStr.split(':');
-    
-    let updatedPeriod = period;
-    let updatedHour = parseInt(hour);
-    let updatedMinute = minute;
-
-    switch (type) {
-      case 'period':
-        updatedPeriod = newValue;
-        break;
-      case 'hour':
-        updatedHour = parseInt(newValue);
-        updatedMinute = '00'; // 시간 선택 시 자동으로 00분 설정
-        break;
-      case 'minute':
-        updatedMinute = newValue;
-        break;
-    }
-
-    const newTime = `${updatedPeriod}:${updatedHour.toString().padStart(2, '0')}:${updatedMinute}`;
-    onChange(newTime);
-  };
-
-  return (
-    <TimeSelectorContainer ref={ref}>
-      <TimeDisplay onClick={() => !disabled && setIsOpen(!isOpen)}>
-        <FaClock />
-        <span>{value}</span>
-      </TimeDisplay>
-      {isOpen && (
-        <DropdownContainer>
-          <DropdownColumn>
-            {['오전', '오후'].map((p) => (
-              <DropdownItem 
-                key={p} 
-                onClick={() => handleSelect('period', p)} 
-                selected={p === value.split(':')[0]}
-              >
-                {p}
-              </DropdownItem>
-            ))}
-          </DropdownColumn>
-          <DropdownColumn>
-            {Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0')).map((h) => (
-              <DropdownItem 
-                key={h} 
-                onClick={() => handleSelect('hour', h)} 
-                selected={h === value.split(':')[1]}
-              >
-                {h}
-              </DropdownItem>
-            ))}
-          </DropdownColumn>
-          <DropdownColumn>
-            {minuteOptions.map((m) => (
-              <DropdownItem 
-                key={m} 
-                onClick={() => handleSelect('minute', m)} 
-                selected={m === value.split(':')[2]}
-              >
-                {m}
-              </DropdownItem>
-            ))}
-          </DropdownColumn>
-        </DropdownContainer>
-      )}
-    </TimeSelectorContainer>
-  );
-};
+import useReservationSettingsStore from '../../store/reservationSettingsStore';
+import TimePicker from 'react-time-picker';
+import 'react-time-picker/dist/TimePicker.css';
+import 'react-clock/dist/Clock.css';
 
 /**
  * 설정 폼 컴포넌트
@@ -115,40 +19,16 @@ const TimeSelector = ({ value, onChange, disabled }) => {
  * @param {boolean} isLoading - 로딩 상태
  */
 const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEdit, isLoading }) => {
-  /**
-   * 24시간 형식을 12시간 형식으로 변환
-   * @param {string} timeStr - "HH:MM" 형식의 시간
-   * @returns {string} "오전/오후:HH:MM" 형식의 시간
-   */
-  const formatTimeToAmPm = (timeStr) => {
-    if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':');
-    let hour = parseInt(hours);
-    const period = hour >= 12 ? '오후' : '오전';
-    
-    if (hour > 12) hour -= 12;
-    if (hour === 0) hour = 12;
-    
-    return `${period}:${hour.toString().padStart(2, '0')}:${minutes}`;
-  };
+  const [localDays, setLocalDays] = useState(settings?.available_days || '1111111');
 
-  /**
-   * 시간 변경 핸들러
-   * @param {string} field - 변경할 필드 (check_in_time/check_out_time)
-   * @param {string} time - 새로운 시간 값
-   */
+  if (!settings) return null;
+
   const handleTimeChange = (field, time) => {
     if (!isEditing) return;
     
-    const [period, hour, minute] = time.split(':');
-    let hours = parseInt(hour);
-    if (period === '오후' && hours !== 12) hours += 12;
-    if (period === '오전' && hours === 12) hours = 0;
-    
-    const formattedTime = `${hours.toString().padStart(2, '0')}:${minute}`;
     onSettingsChange({
       ...settings,
-      [field]: formattedTime
+      [field]: time
     });
   };
 
@@ -167,36 +47,46 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
     });
   };
 
-  /**
-   * 요일 선택 처리
-   * @param {string} day - 선택한 요일
-   */
-  const handleDaySelect = (day) => {
+  // 요일 선택 처리
+  const handleDaySelect = (dayIndex) => {
     if (!isEditing) return;
-
-    const dayNumber = Object.entries(dayMapping).find(([_, value]) => value === day)[0];
-    const currentDuration = settings.default_duration;
-    const newDuration = currentDuration ^ (1 << (dayNumber - 1));
-
+    
+    const dayArray = localDays.split('');
+    dayArray[dayIndex] = dayArray[dayIndex] === '1' ? '0' : '1';
+    const newDays = dayArray.join('');
+    setLocalDays(newDays);
+    
     onSettingsChange({
       ...settings,
-      default_duration: newDuration
+      available_days: newDays
     });
   };
 
-  if (!settings) return null;
+  // 요일별 요금 입력 활성화 여부 확인
+  const getPriceInputStatus = () => {
+    if (!settings?.available_days) return { weekday: false, friday: false, weekend: false };
+    
+    const days = settings.available_days.split('');
+    return {
+      weekday: days.slice(0, 4).includes('1'),  // 월~목 중 하나라도 선택
+      friday: days[4] === '1',                  // 금요일 선택
+      weekend: days.slice(5, 7).includes('1')   // 토,일 중 하나라도 선택
+    };
+  };
+
+  const priceStatus = getPriceInputStatus();
 
   return (
     <SettingsContainer>
       <Section>
         <SectionTitle>예약 가능 요일</SectionTitle>
         <DayContainer>
-          {['월', '화', '수', '목', '금', '토', '일'].map((day) => (
+          {['월', '화', '수', '목', '금', '토', '일'].map((day, index) => (
             <DayButton
               key={day}
               type="button"
-              onClick={() => handleDaySelect(day)}
-              selected={getSelectedDays(settings.default_duration).includes(day)}
+              onClick={() => handleDaySelect(index)}
+              selected={localDays[index] === '1'}
               disabled={!isEditing}
               isEditing={isEditing}
             >
@@ -210,16 +100,16 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
         <TimeContainer>
           <InputGroup>
             <Label>체크인</Label>
-            <TimeSelector 
-              value={formatTimeToAmPm(settings.check_in_time)}
+            <TimeInput 
+              value={settings.check_in_time}
               onChange={(time) => handleTimeChange('check_in_time', time)}
               disabled={!isEditing}
             />
           </InputGroup>
           <InputGroup>
             <Label>체크아웃</Label>
-            <TimeSelector 
-              value={formatTimeToAmPm(settings.check_out_time)}
+            <TimeInput 
+              value={settings.check_out_time}
               onChange={(time) => handleTimeChange('check_out_time', time)}
               disabled={!isEditing}
             />
@@ -237,7 +127,7 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
                 type="text"
                 value={settings.weekday_rate.toLocaleString()}
                 onChange={handlePriceChange('weekdayPrice')}
-                disabled={!isEditing}
+                disabled={!isEditing || !priceStatus.weekday}
               />
               <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
@@ -250,7 +140,7 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
                 type="text"
                 value={settings.friday_rate.toLocaleString()}
                 onChange={handlePriceChange('fridayPrice')}
-                disabled={!isEditing}
+                disabled={!isEditing || !priceStatus.friday}
               />
               <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
@@ -263,7 +153,7 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
                 type="text"
                 value={settings.weekend_rate.toLocaleString()}
                 onChange={handlePriceChange('weekendPrice')}
-                disabled={!isEditing}
+                disabled={!isEditing || !priceStatus.weekend}
               />
               <PriceUnit>원</PriceUnit>
             </PriceInputWrapper>
@@ -292,90 +182,84 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
  * - 설정 조회/수정/저장 기능
  */
 const ReservationSettings = () => {
-  // 로컬 상태
   const [activeTab, setActiveTab] = useState('대실');
   const [editingType, setEditingType] = useState(null);
   const [localSettings, setLocalSettings] = useState({});
   
-  // store에서 상태와 액션 가져오기
   const { settings, isLoading, error, fetchSettings, updateSettings } = useReservationSettingsStore();
 
-  // 초기 데이터 로드
   useEffect(() => {
     fetchSettings();
   }, []);
 
-  // 전역 상태 변경 시 로컬 상태 업데이트
   useEffect(() => {
     if (settings) {
       setLocalSettings(settings);
     }
   }, [settings]);
 
-  /**
-   * 설정 변경 핸들러
-   * @param {object} newSettings - 새로운 설정 데이터
-   */
+  // 현재 탭의 stay_type 반환
+  const getCurrentType = () => {
+    switch(activeTab) {
+      case '대실': return 'hourly';
+      case '숙박': return 'nightly';
+      case '장기': return 'long_term';
+      default: return 'hourly';
+    }
+  };
+
+  // 로컬 상태만 변경하는 핸들러
   const handleSettingsChange = (newSettings) => {
-    const mappedType = stayTypeMap[activeTab];
     setLocalSettings(prev => ({
       ...prev,
-      [mappedType]: {
-        ...prev[mappedType],
+      [getCurrentType()]: {
+        ...prev[getCurrentType()],
         ...newSettings
       }
     }));
   };
 
-  /**
-   * 설정 저장 핸들러
-   * @param {string} type - 숙박 유형 (대실/숙박/장기)
-   */
-  const handleSave = async (type) => {
+  // 저장 버튼 클릭 시에만 API 호출
+  const handleSave = async () => {
     try {
-      const mappedType = stayTypeMap[type];
-      const currentSettings = localSettings[mappedType];
-      
-      if (!currentSettings) {
-        throw new Error('현재 설정을 찾을 수 없습니다.');
-      }
-
-      await updateSettings(type, currentSettings);
+      const type = getCurrentType();
+      await updateSettings(type, localSettings[type]);
       setEditingType(null);
-      alert('설정이 성공적으로 저장되었습니다.');
     } catch (error) {
       console.error('설정 저장 실패:', error);
-      alert('설정 저장에 실패했습니다: ' + error.message);
     }
   };
 
-  // 에러 상태 처리
   if (error) {
-    return <div>에러 발생: {error}</div>;
+    return <div>에러: {error.message}</div>;
   }
 
   return (
     <Container>
-      <TabContainer>
-        {['대실', '숙박', '장기'].map(tab => (
-          <Tab 
-            key={tab} 
-            active={activeTab === tab} 
-            onClick={() => !isLoading && setActiveTab(tab)}
-          >
-            {tab}
-          </Tab>
-        ))}
-      </TabContainer>
-      <SettingForm
-        type={activeTab}
-        settings={localSettings[stayTypeMap[activeTab]]}
-        onSettingsChange={handleSettingsChange}
-        onSave={() => handleSave(activeTab)}
-        isEditing={editingType === activeTab}
-        onEdit={() => setEditingType(activeTab)}
-        isLoading={isLoading}
-      />
+      <Section>
+        <SectionTitle>예약 설정</SectionTitle>
+        <TabContainer>
+          {['대실', '숙박', '장기'].map(tab => (
+            <TabButton
+              key={tab}
+              active={activeTab === tab}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+            </TabButton>
+          ))}
+        </TabContainer>
+        
+        <SettingForm
+          type={activeTab}
+          settings={localSettings[getCurrentType()]}
+          onSettingsChange={handleSettingsChange}  // 로컬 상태 변경만 하는 함수 전달
+          onSave={handleSave}
+          isEditing={editingType === activeTab}
+          onEdit={() => setEditingType(activeTab)}
+          isLoading={isLoading}
+        />
+      </Section>
     </Container>
   );
 };
@@ -393,7 +277,7 @@ const TabContainer = styled.div`
   margin-bottom: 30px;
 `;
 
-const Tab = styled.button`
+const TabButton = styled.button`
   padding: 10px 20px;
   margin-bottom: 20px;
   border: none;
@@ -478,64 +362,6 @@ const Label = styled.label`
   color: ${theme.colors.text};
 `;
 
-const TimeSelectorContainer = styled.div`
-  position: relative;
-  width: 100%;
-`;
-
-const TimeDisplay = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid #171f26;
-  height: 50px;
-  font-size: 18px;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: transparent;
-
-  &:hover {
-    background-color: #E6F0FF;
-  }
-`;
-
-const DropdownContainer = styled.div`
-  position: absolute;
-  top: 100%;
-  left: 0;
-  display: flex;
-  background-color: #FFFFFF;
-  width: 100%;
-  border: 1px solid #171f26;
-  border-radius: 4px;
-  z-index: 10;
-`;
-
-const DropdownColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  max-height: 200px;
-  overflow-y: auto;
-  width: 100%;
-  text-align: center;
-
-  &:last-child {
-    border-right: none;
-  }
-`;
-
-const DropdownItem = styled.div`
-  padding: 5px 10px;
-  cursor: pointer;
-  background-color: ${props => props.selected ? '#3395FF' : '#FFFFFF'};
-  color: ${props => props.selected ? theme.colors.buttonPrimary.text : theme.colors.text};
-
-  &:hover {
-    background-color: #E6F0FF;
-  }
-`;
-
 const PriceInputWrapper = styled.div`
   position: relative;
   width: 100%;
@@ -594,7 +420,7 @@ const SaveButton = styled(Button)`
 
 const EditButton = styled(Button)`
   padding: 10px 30px;
-  background-color: ${theme.colors.secondary};
+  background-color: ${theme.colors.secondary};ㅜ
   color: white;
   border: none;
   border-radius: 4px;
@@ -605,5 +431,198 @@ const EditButton = styled(Button)`
   &:hover {
     background-color: ${theme.colors.secondaryDark};
   }
+`;
+
+const StyledTimePicker = styled(TimePicker)`
+  &.react-time-picker {
+    width: 100%;
+    position: relative;
+  }
+
+  .react-time-picker__wrapper {
+    border: none;
+    background: transparent;
+  }
+
+  .react-time-picker__clock {
+    display: none;
+  }
+
+  .react-time-picker__inputGroup {
+    pointer-events: none;
+  }
+
+  /* 드롭다운 메뉴 스타일링 */
+  .react-time-picker__dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    width: 200px;
+    background: white;
+    border: 1px solid #DDE2E5;
+    border-radius: 5px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    margin-top: 4px;
+
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* 시간/분 옵션 스타일링 */
+  .react-time-picker__option {
+    padding: 4px 8px;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 4px;
+
+    &:hover {
+      background-color: ${theme.colors.background};
+    }
+
+    &--selected {
+      background-color: ${theme.colors.primary};
+      color: white;
+    }
+  }
+`;
+
+const TimeInput = ({ value, onChange, disabled }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef();
+
+  // 시간과 분을 분리
+  const [selectedHour, selectedMinute] = value ? value.split(':') : ['00', '00'];
+
+  // 시간 ���션 (00~23)
+  const hourOptions = useMemo(() => {
+    return Array.from({ length: 24 }, (_, i) => 
+      i.toString().padStart(2, '0')
+    );
+  }, []);
+
+  // 분 옵션 (00, 10, 20, ..., 50)
+  const minuteOptions = useMemo(() => {
+    return Array.from({ length: 6 }, (_, i) => 
+      (i * 10).toString().padStart(2, '0')
+    );
+  }, []);
+
+  // 시간 선택 처리
+  const handleTimeSelect = (newHour, newMinute) => {
+    // HH:mm 형식으로 변환하여 전달
+    const formattedTime = `${newHour.padStart(2, '0')}:${(newMinute || selectedMinute).padStart(2, '0')}`;
+    onChange(formattedTime);
+    setIsOpen(false);
+  };
+
+  return (
+    <TimeInputContainer ref={ref}>
+      <TimeDisplay 
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+      >
+        {value || '00:00'}
+        <TimeIcon disabled={disabled} />
+      </TimeDisplay>
+      
+      {isOpen && !disabled && (
+        <DropdownContainer>
+          <DropdownColumn>
+            <ColumnHeader>시</ColumnHeader>
+            {hourOptions.map((hour) => (
+              <DropdownItem
+                key={hour}
+                selected={hour === selectedHour}
+                onClick={() => handleTimeSelect(hour, selectedMinute)}
+              >
+                {hour}
+              </DropdownItem>
+            ))}
+          </DropdownColumn>
+          <ColumnDivider />
+          <DropdownColumn>
+            <ColumnHeader>분</ColumnHeader>
+            {minuteOptions.map((minute) => (
+              <DropdownItem
+                key={minute}
+                selected={minute === selectedMinute}
+                onClick={() => handleTimeSelect(selectedHour, minute)}
+              >
+                {minute}
+              </DropdownItem>
+            ))}
+          </DropdownColumn>
+        </DropdownContainer>
+      )}
+    </TimeInputContainer>
+  );
+};
+
+// 스타일 컴포넌트들
+const TimeInputContainer = styled.div`
+  position: relative;
+  width: 100%;
+`;
+
+const TimeDisplay = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 40px;
+  border: 1px solid ${props => props.disabled ? '#E0E1E1' : '#DDE2E5'};
+  border-radius: 4px;
+  background: ${props => props.disabled ? '#F5F5F5' : '#FFFFFF'};
+  cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
+`;
+
+const DropdownContainer = styled.div`
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  display: flex;
+  background: white;
+  border: 1px solid #DDE2E5;
+  border-radius: 4px;
+  margin-top: 4px;
+  z-index: 1000;
+`;
+
+const ColumnHeader = styled.div`
+  padding: 8px;
+  font-weight: bold;
+  border-bottom: 1px solid #DDE2E5;
+  text-align: center;
+`;
+
+const DropdownColumn = styled.div`
+  flex: 1;
+  max-height: 200px;
+  overflow-y: auto;
+`;
+
+const ColumnDivider = styled.div`
+  width: 1px;
+  background: #DDE2E5;
+`;
+
+const DropdownItem = styled.div`
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+  background: ${props => props.selected ? '#E6F0FF' : 'transparent'};
+
+  &:hover {
+    background: #F5F5F5;
+  }
+`;
+
+const TimeIcon = styled(FaClock)`
+  color: ${props => props.disabled ? '#6E7881' : theme.colors.primary};
+  font-size: 16px;
 `;
 
