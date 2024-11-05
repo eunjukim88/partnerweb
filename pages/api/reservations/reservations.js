@@ -72,45 +72,57 @@ async function handleCreateReservation(req, res) {
     const {
       reservation_number,
       room_id,
-      guest_name,
-      phone,
-      check_in,
-      check_out,
+      check_in_date,
+      check_out_date,
       check_in_time,
       check_out_time,
       stay_type,
       booking_source,
-      price,
-      memo
+      stay_type_rate,
+      memo,
+      phone,
+      guest_name
     } = req.body;
+
+    // 필수 필드 검증
+    const requiredFields = ['reservation_number', 'room_id', 'check_in_date', 
+      'check_out_date', 'check_in_time', 'check_out_time', 'stay_type', 
+      'booking_source', 'stay_type_rate', 'phone'];
+    
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({ 
+        error: `Missing required fields: ${missingFields.join(', ')}` 
+      });
+    }
 
     const { rows } = await sql`
       INSERT INTO reservations (
         reservation_number,
         room_id,
-        guest_name,
-        phone,
-        check_in,
-        check_out,
+        check_in_date,
+        check_out_date,
         check_in_time,
         check_out_time,
         stay_type,
         booking_source,
-        price,
-        memo
+        stay_type_rate,
+        memo,
+        phone,
+        guest_name
       ) VALUES (
         ${reservation_number},
         ${room_id},
-        ${guest_name},
-        ${phone},
-        ${check_in}::date,
-        ${check_out}::date,
+        ${check_in_date}::date,
+        ${check_out_date}::date,
         ${check_in_time}::time,
         ${check_out_time}::time,
         ${stay_type},
         ${booking_source},
-        ${price},
-        ${memo}
+        ${stay_type_rate},
+        ${memo},
+        ${phone},
+        ${guest_name}
       )
       RETURNING *
     `;

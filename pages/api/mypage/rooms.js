@@ -49,65 +49,57 @@ async function handleGetRooms(req, res) {
  * rooms 테이블과 room_rates 테이블 동시 수정
  */
 async function handleUpdateRoom(req, res) {
-  const { room_id, rates, ...roomData } = req.body;
-
   try {
-    // 데이터 유효성 검증
-    if (!room_id || typeof room_id !== 'number') {
-      return res.status(400).json({ error: '유효하지 않은 room_id입니다.' });
+    const { room_id, rates, ...roomData } = req.body;
+    console.log('Received data:', { room_id, rates, roomData });
+
+    if (!room_id) {
+      return res.status(400).json({ error: 'room_id가 필요합니다.' });
     }
 
     await sql`BEGIN`;
 
-    // rooms 테이블 업데이트 전 존재 여부 확인
-    const roomExists = await sql`
-      SELECT room_id FROM rooms WHERE room_id = ${room_id}
-    `;
-
-    if (roomExists.rows.length === 0) {
-      await sql`ROLLBACK`;
-      return res.status(404).json({ error: '객실을 찾을 수 없습니다' });
-    }
-
-    // 1. rooms 테이블 수정
+    // 1. rooms 테이블 업데이트
     const roomResult = await sql`
       UPDATE rooms
       SET
-        ${sql(roomData)},
+        room_floor = ${roomData.room_floor},
+        room_building = ${roomData.room_building},
+        room_name = ${roomData.room_name},
+        room_type = ${roomData.room_type},
+        show_floor = ${roomData.show_floor},
+        show_building = ${roomData.show_building},
+        show_name = ${roomData.show_name},
+        show_type = ${roomData.show_type},
+        hourly = ${roomData.hourly},
+        nightly = ${roomData.nightly},
+        long_term = ${roomData.long_term},
         updated_at = CURRENT_TIMESTAMP
-      WHERE
-        room_id = ${room_id}
+      WHERE room_id = ${room_id}
       RETURNING *
     `;
 
-    if (roomResult.rows.length === 0) {
-      await sql`ROLLBACK`;
-      return res.status(404).json({ error: '객실을 찾을 수 없습니다' });
-    }
-
-    // 2. room_rates 테이블 수정 또는 추가 (있는 경우)
+    // 2. room_rates 테이블 업데이트
     if (rates) {
-      const ratesFields = ['rate_hourly_weekday', 'rate_hourly_friday', 'rate_hourly_weekend',
-                          'rate_nightly_weekday', 'rate_nightly_friday', 'rate_nightly_weekend'];
-      
-      if (!ratesFields.every(field => typeof rates[field] === 'number' && rates[field] >= 0)) {
-        await sql`ROLLBACK`;
-        return res.status(400).json({ error: '유효하지 않은 요금 데이터입니다.' });
-      }
-
       await sql`
-        INSERT INTO room_rates (room_id, rate_hourly_weekday, rate_hourly_friday, rate_hourly_weekend, rate_nightly_weekday, rate_nightly_friday, rate_nightly_weekend)
-        VALUES (
+        INSERT INTO room_rates (
+          room_id,
+          rate_hourly_weekday,
+          rate_hourly_friday,
+          rate_hourly_weekend,
+          rate_nightly_weekday,
+          rate_nightly_friday,
+          rate_nightly_weekend
+        ) VALUES (
           ${room_id},
-          ${rates.rate_hourly_weekday || 0},
-          ${rates.rate_hourly_friday || 0},
-          ${rates.rate_hourly_weekend || 0},
-          ${rates.rate_nightly_weekday || 0},
-          ${rates.rate_nightly_friday || 0},
-          ${rates.rate_nightly_weekend || 0}
+          ${rates.rate_hourly_weekday},
+          ${rates.rate_hourly_friday},
+          ${rates.rate_hourly_weekend},
+          ${rates.rate_nightly_weekday},
+          ${rates.rate_nightly_friday},
+          ${rates.rate_nightly_weekend}
         )
-        ON CONFLICT (room_id)
-        DO UPDATE SET
+        ON CONFLICT (room_id) DO UPDATE SET
           rate_hourly_weekday = EXCLUDED.rate_hourly_weekday,
           rate_hourly_friday = EXCLUDED.rate_hourly_friday,
           rate_hourly_weekend = EXCLUDED.rate_hourly_weekend,
@@ -119,10 +111,19 @@ async function handleUpdateRoom(req, res) {
     }
 
     await sql`COMMIT`;
-    res.status(200).json(roomResult.rows[0]);
+
+    // 업데이트된 전체 데이터 조회
+    const finalResult = await sql`
+      SELECT r.*, rr.*
+      FROM rooms r
+      LEFT JOIN room_rates rr ON r.room_id = rr.room_id
+      WHERE r.room_id = ${room_id}
+    `;
+
+    res.status(200).json(finalResult.rows[0]);
   } catch (error) {
     await sql`ROLLBACK`;
     console.error('객실 수정 실패:', error);
-    res.status(500).json({ error: '객실 수정 실패' });
+    res.status(500).json({ error: error.message || '객실 수정 실패' });
   }
 }

@@ -19,7 +19,13 @@ import 'react-clock/dist/Clock.css';
  * @param {boolean} isLoading - 로딩 상태
  */
 const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEdit, isLoading }) => {
-  const [localDays, setLocalDays] = useState(settings?.available_days || '1111111');
+  const [localDays, setLocalDays] = useState('');
+
+  useEffect(() => {
+    if (settings?.available_days) {
+      setLocalDays(settings.available_days);
+    }
+  }, [settings]);
 
   if (!settings) return null;
 
@@ -58,7 +64,8 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
     
     onSettingsChange({
       ...settings,
-      available_days: newDays
+      available_days: newDays,
+      stay_type: type
     });
   };
 
@@ -208,13 +215,24 @@ const ReservationSettings = () => {
     }
   };
 
+  // 탭 변경 핸들러 추가
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    // 수정 중이었다면 수정 모드 해제
+    if (editingType) {
+      setEditingType(null);
+    }
+  };
+
   // 로컬 상태만 변경하는 핸들러
   const handleSettingsChange = (newSettings) => {
+    const currentType = getCurrentType();
     setLocalSettings(prev => ({
       ...prev,
-      [getCurrentType()]: {
-        ...prev[getCurrentType()],
-        ...newSettings
+      [currentType]: {
+        ...prev[currentType],
+        ...newSettings,
+        stay_type: currentType // stay_type 보존
       }
     }));
   };
@@ -225,6 +243,8 @@ const ReservationSettings = () => {
       const type = getCurrentType();
       await updateSettings(type, localSettings[type]);
       setEditingType(null);
+      // 저장 후 데이터 새로고침
+      await fetchSettings();
     } catch (error) {
       console.error('설정 저장 실패:', error);
     }
@@ -243,7 +263,7 @@ const ReservationSettings = () => {
             <TabButton
               key={tab}
               active={activeTab === tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleTabChange(tab)}
             >
               {tab}
             </TabButton>
@@ -251,9 +271,9 @@ const ReservationSettings = () => {
         </TabContainer>
         
         <SettingForm
-          type={activeTab}
+          type={getCurrentType()}
           settings={localSettings[getCurrentType()]}
-          onSettingsChange={handleSettingsChange}  // 로컬 상태 변경만 하는 함수 전달
+          onSettingsChange={handleSettingsChange}
           onSave={handleSave}
           isEditing={editingType === activeTab}
           onEdit={() => setEditingType(activeTab)}
@@ -496,7 +516,7 @@ const TimeInput = ({ value, onChange, disabled }) => {
   // 시간과 분을 분리
   const [selectedHour, selectedMinute] = value ? value.split(':') : ['00', '00'];
 
-  // 시간 ���션 (00~23)
+  // 시간 션 (00~23)
   const hourOptions = useMemo(() => {
     return Array.from({ length: 24 }, (_, i) => 
       i.toString().padStart(2, '0')

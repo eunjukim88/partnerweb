@@ -106,30 +106,36 @@ export default async function handler(req, res) {
      * - 체크인/아웃 관리
      * 
      * 특징:
-     * - check_in/out: 한국 날짜 (YYYY-MM-DD)
-     * - check_in/out_time: 체크인 및 체크아웃 시간 관리
-     * - price: 객실 요금 관리
-     * 
-     * 연관 테이블:
-     * - rooms: room_id로 연결
+     * - reservation_number: 고유한 예약 번호
+     * - check_in/out_date: 체크인/아웃 날짜
+     * - check_in/out_time: reservation_settings의 시간 값 사용
+     * - stay_type_rate: 예약 당시의 적용 요금
+     * - booking_source: 예약 경로 (DIRECT, AIRBNB 등)
      */
     await sql`
       CREATE TABLE IF NOT EXISTS reservations (
         reservation_id SERIAL PRIMARY KEY,
-        reservation_number VARCHAR(255) NOT NULL UNIQUE,
-        room_id INTEGER REFERENCES rooms(room_id),
-        guest_name VARCHAR(255) NOT NULL,
-        phone VARCHAR(255) NOT NULL,
-        check_in DATE NOT NULL,
-        check_out DATE NOT NULL,
+        reservation_number VARCHAR(50) NOT NULL UNIQUE,
+        room_id INTEGER NOT NULL REFERENCES rooms(room_id),
+        check_in_date DATE NOT NULL,
+        check_out_date DATE NOT NULL,
         check_in_time TIME NOT NULL,
         check_out_time TIME NOT NULL,
-        booking_source VARCHAR(50),
-        stay_type VARCHAR(50) CHECK (stay_type IN ('hourly', 'nightly', 'long_term')),
-        price INTEGER DEFAULT 0,
-        memo TEXT NULL,
+        stay_type VARCHAR(20) NOT NULL CHECK (stay_type IN ('hourly', 'nightly', 'long_term')),
+        booking_source VARCHAR(20) NOT NULL CHECK (
+          booking_source IN ('DIRECT', 'AIRBNB', 'YANOLJA', 'YEOGI', 'BOOKING', 'AGODA', 'OTHER')
+        ),
+        stay_type_rate INTEGER NOT NULL,
+        memo TEXT,
+        phone VARCHAR(20) NOT NULL,
+        guest_name VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        
+        CONSTRAINT fk_room
+          FOREIGN KEY(room_id)
+          REFERENCES rooms(room_id)
+          ON DELETE RESTRICT
       )
     `;
 
@@ -145,9 +151,13 @@ export default async function handler(req, res) {
       CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(reservation_status, room_status);
       CREATE INDEX IF NOT EXISTS idx_room_rates_room_id ON room_rates(room_id);
       CREATE INDEX IF NOT EXISTS idx_reservations_room_id ON reservations(room_id);
-      CREATE INDEX IF NOT EXISTS idx_reservations_dates ON reservations(check_in, check_out);
+      CREATE INDEX IF NOT EXISTS idx_reservations_dates ON reservations(check_in_date, check_out_date);
       CREATE INDEX IF NOT EXISTS idx_reservations_stay_type ON reservations(stay_type);
       CREATE INDEX IF NOT EXISTS idx_reservation_settings_stay_type ON reservation_settings(stay_type);
+      CREATE INDEX IF NOT EXISTS idx_reservations_number ON reservations(reservation_number);
+      CREATE INDEX IF NOT EXISTS idx_reservations_booking_source ON reservations(booking_source);
+      CREATE INDEX IF NOT EXISTS idx_reservations_phone ON reservations(phone);
+      CREATE INDEX IF NOT EXISTS idx_reservations_guest ON reservations(guest_name);
     `;
 
     await sql`COMMIT`;

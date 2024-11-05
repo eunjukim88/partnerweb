@@ -2,7 +2,7 @@
  * 예약 관련 상수 정의
  */
 
-// 예약 경로
+// 예약 경로 (DB enum과 일치)
 export const BOOKING_SOURCES = [
   { value: 'DIRECT', label: '직접예약' },
   { value: 'AIRBNB', label: '에어비앤비' },
@@ -13,25 +13,23 @@ export const BOOKING_SOURCES = [
   { value: 'OTHER', label: '기타' }
 ];
 
-// 숙박 타입
+// 숙박 타입 (DB enum과 일치)
 export const STAY_TYPES = {
   HOURLY: 'hourly',
   NIGHTLY: 'nightly',
   LONG_TERM: 'long_term'
 };
 
-// 숙박 타입 매핑 (프론트엔드 <-> 백엔드)
+// 프론트엔드 <-> 백엔드 매핑
 export const STAY_TYPE_MAP = {
   '대실': STAY_TYPES.HOURLY,
   '숙박': STAY_TYPES.NIGHTLY,
   '장기': STAY_TYPES.LONG_TERM
 };
 
-// 숙박 타입 역매핑 (백엔드 -> 프론트엔드)
-export const REVERSE_STAY_TYPE_MAP = {
-  [STAY_TYPES.HOURLY]: '대실',
-  [STAY_TYPES.NIGHTLY]: '숙박',
-  [STAY_TYPES.LONG_TERM]: '장기'
+// 백엔드 타입을 프론트엔드 타입으로 변환하는 함수
+export const getDisplayStayType = (backendType) => {
+  return Object.entries(STAY_TYPE_MAP).find(([_, value]) => value === backendType)?.[0] || backendType;
 };
 
 // 기본 시간 설정

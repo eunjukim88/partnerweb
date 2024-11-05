@@ -58,31 +58,36 @@ const useRoomStore = create(persist(
     updateRoom: async (room_id, updatedData) => {
       set({ isLoading: true, error: null });
       try {
-        console.log('Updating room:', { room_id, updatedData }); // 디버깅
-
-        if (!room_id || isNaN(room_id)) {
-          throw new Error('유효하지 않은 room_id입니다.');
-        }
-
-        const response = await axios.put('/api/mypage/rooms', {
+        console.log('=== updateRoom 시작 ===');
+        
+        const requestData = {
           room_id,
           ...updatedData.roomData,
           rates: updatedData.ratesData
-        });
+        };
 
-        if (response.status === 200) {
+        console.log('Request Data:', requestData);
+
+        const response = await axios.put('/api/mypage/rooms', requestData);
+        
+        if (response.data) {
+          // 서버에서 받은 새로운 데이터로 상태 업데이트
           const updatedRooms = get().rooms.map((room) =>
-            room.room_id === room_id ? { ...room, ...response.data } : room
+            room.room_id === room_id ? response.data : room
           );
-          set({ rooms: updatedRooms, isLoading: false, error: null });
+          set({ rooms: updatedRooms, isLoading: false });
+          
+          // 캐시된 데이터 갱신을 위해 rooms 다시 조회
+          await get().fetchRooms();
+          
           return response.data;
         }
       } catch (error) {
-        console.error('객실 수정 실패:', error);
-        set({ 
-          error: error.response?.data?.error || error.message || '객실 수정에 실패했습니다.', 
-          isLoading: false 
-        });
+        console.error('=== 에러 상세 ===');
+        console.error('Error:', error);
+        console.error('Response:', error.response);
+        const errorMessage = error.response?.data?.error || '객실 수정에 실패했습니다.';
+        set({ error: errorMessage, isLoading: false });
         throw error;
       }
     },

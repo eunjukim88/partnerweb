@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import useRoomStore from '@/src/store/roomStore'; // roomStore 임포트 추가
+import useRoomStore from '@/src/store/roomStore'; 
 import styled from 'styled-components';
 import { FaArrowLeft, FaExclamationCircle, FaInfoCircle } from 'react-icons/fa';
 
@@ -154,7 +154,9 @@ const RoomEdit = () => {
 
   const handleSave = async () => {
     try {
-      console.log('Saving room data:', room); // 디버깅
+      console.log('=== 저장 시작 ===');
+      console.log('Room ID:', roomId);
+      console.log('Room State:', room);
 
       if (!roomId) {
         throw new Error('객실 ID가 누락되었습니다.');
@@ -162,7 +164,7 @@ const RoomEdit = () => {
 
       const roomData = {
         room_id: parseInt(roomId),
-        room_floor: room.room_floor,
+        room_floor: room.room_floor || null,
         room_building: room.room_building,
         room_name: room.room_name,
         room_type: room.room_type,
@@ -175,15 +177,19 @@ const RoomEdit = () => {
         long_term: room.salesLimit.long_term
       };
 
-      await updateRoom(parseInt(roomId), {
-        roomData,
-        ratesData: room.rates
-      });
+      const result = await updateRoom(parseInt(roomId), { roomData, ratesData: room.rates });
+      
+      console.log('=== 저장 결과 ===');
+      console.log('Result:', result);
 
       alert('저장이 완료되었습니다.');
-      router.push('/mypage?section=rooms');
+      router.push('/mypage?section=roomSettings');
     } catch (error) {
-      console.error('저장 실패:', error);
+      console.error('=== 저장 실패 ===');
+      console.error('Error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
+      
       alert(error.message || '저장에 실패했습니다.');
     }
   };

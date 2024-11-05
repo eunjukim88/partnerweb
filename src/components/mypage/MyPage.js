@@ -15,6 +15,7 @@ const RightSectionContent = () => {
     case 'user-guide':
       return <UserGuide />;
     case 'room-settings':
+    case 'roomSettings':
       return <RoomSettings />;
     case 'room-edit':
       return roomNumber ? <RoomEdit roomNumber={roomNumber} /> : null;

@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react'; // React 및 필요한 훅�
 import styled, { keyframes } from 'styled-components'; // styled-components와 keyframes 임포트
 import { MdCreditCard, MdCreditCardOff } from "react-icons/md"; // Material Design 아이콘 임포트
 import { IoIosWarning } from "react-icons/io"; // iOS 경고 아이콘 임포트
+import useRoomStore from '@/src/store/roomStore';
 import WifiIcon from '../WifiIcon'; // WifiIcon 컴포넌트 임포트
 import theme from '../../styles/theme'; // 테마 설정 임포트
+import useReservationSettingsStore from '@/src/store/reservationSettingsStore';
 
 // RoomCard.js 상단에 추가
 const generateRandomCardStatus = () => {
@@ -13,7 +15,7 @@ const generateRandomCardStatus = () => {
 };
 
 
-const RoomNumberDisplay = ({ building, floor, number, display, name, type }) => {
+const RoomNumberDisplay = ({ building, floor, number, name, type, display }) => {
   let displayText = number ? `${number}호` : '';
   
   if (display?.show_building && building) {
@@ -36,11 +38,11 @@ const RoomNumberDisplay = ({ building, floor, number, display, name, type }) => 
   );
 };
 
-const RoomCard = ({ room, displaySettings }) => { // RoomCard 컴포넌트 정의, room prop을 받음
+const RoomCard = ({ room }) => {
   const [mainCard, setMainCard] = useState(generateRandomCardStatus());
   const [subCard, setSubCard] = useState(generateRandomCardStatus());
+  const { settings } = useReservationSettingsStore();
 
-  // 30초마다 랜덤하게 카드 상태만 변경
   useEffect(() => {
     const statusInterval = setInterval(() => {
       setMainCard(generateRandomCardStatus());
@@ -50,100 +52,72 @@ const RoomCard = ({ room, displaySettings }) => { // RoomCard 컴포넌트 정�
     return () => clearInterval(statusInterval);
   }, []);
 
-  // room이 없는 경우 처리
   if (!room) return null;
 
-  const needsCardAlert = !mainCard && !subCard; // 메인 카드와 서브 카드가 모두 없을 경우 경고 필요
+  const needsCardAlert = !mainCard && !subCard;
 
-  const formatDelayTime = (minutes) => { // 지연 시간을 "HH:MM" 형식으로 변환하는 함수
-    const hours = Math.floor(minutes / 60); // 시간 계산
-    const mins = minutes % 60; // 분 계산
-    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`; // 포맷팅된 문자열 반환
-  };
+  const getReservationTimes = () => {
+    if (room.status === 'vacant') return null;
 
-  const getCheckInStatus = (room) => { // 체크인 상태를 반환하는 함수
-    const activeStatuses = ['longStay', 'overnightStay', 'hourlyStay', 'reservationComplete', 'cleaningRequested']; // 활성 상태 목록
-    if (activeStatuses.includes(room.status)) { // room.status가 활성 상태 목록에 포함되는지 확인
-      if (room.checkInStatus) { // 체크인 상태가 존재할 경우
-        if (room.delay > 0) { // 지연 시간이 있을 경우
-          return (
-            <>
-              체크인 | <DelayText>{formatDelayTime(room.delay)} 지연</DelayText> {/* 지연 시간 표시 */}
-            </>
-          );
-        }
-        return `체크인 | ${room.checkInStatus}`; // 체크인 상태 표시
-      } else if (room.checkOutStatus) { // 체크아웃 상태가 존재할 경우
-        if (room.delay > 0) { // 지연 시간이 있을 경우
-          return (
-            <>
-              체크아웃 | <DelayText>{formatDelayTime(room.delay)} 지연</DelayText> {/* 지연 시간 표시 */}
-            </>
-          );
-        }
-        return '체크아웃'; // 체크아웃 상태 표시
-      }
-    }
-    return null; // 해당 조건에 맞지 않으면 null 반환
-  };
+    const stayType = room.status === 'hourlyStay' ? 'hourly' : 
+                    room.status === 'overnightStay' ? 'nightly' : 
+                    room.status === 'longStay' ? 'long_term' : null;
 
-  const checkInStatus = getCheckInStatus(room); // 체크인 상태 변수 설정
+    if (!stayType || !settings[stayType]) return null;
 
-  const formatTime = (time) => {
-    if (!time) return '';
-    const [hours, minutes] = time.split(':');
-    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    const checkInTime = settings[stayType].check_in_time;
+    const checkOutTime = settings[stayType].check_out_time;
+
+    return `${checkInTime} ~ ${checkOutTime}`;
   };
 
   return (
-    <CardContainer status={room.status || 'vacant'}> 
-      <RoomHeader> {/* 방 헤더 섹션 */}
-      <RoomNumberDisplay 
-          building={room.building}
-          floor={room.floor}
-          number={room.number}
-          name={room.name}
-          type={room.type}
-          display={room.display || {}} // 기본값 설정
-        />  
-        {room.hasWifi && <WifiIcon />} {/* Wi-Fi가 있는 경우 Wi-Fi 아이콘 표시 */}
+    <CardContainer status={room.status || 'vacant'}>
+      <RoomHeader>
+        <RoomNumberDisplay 
+          building={room.room_building}
+          floor={room.room_floor}
+          number={room.room_number}
+          name={room.room_name}
+          type={room.room_type}
+          display={{
+            show_building: room.show_building,
+            show_floor: room.show_floor,
+            show_name: room.show_name,
+            show_type: room.show_type
+          }}
+        />
+        {room.hasWifi && <WifiIcon />}
       </RoomHeader>
-      <StatusSection> {/* 상태 섹션 */}
-        <CheckInStatus>
-          {room.status && room.status !== 'vacant' && (
-            <>
-              {room.status}
-              {room.delay > 0 && (
-                <DelayText> {formatDelayTime(room.delay)} 지연</DelayText>
-              )}
-            </>
-          )}
-        </CheckInStatus>
+      <StatusSection>
+        <RoomStatus>
+          {getStatusText(room.status)}
+        </RoomStatus>
       </StatusSection>
       <RoomTimes>
-        {room.reservation_time}
+        {getReservationTimes()}
       </RoomTimes>
-      <BottomSection> {/* 하단 섹션 */}
-        <MemoSection> {/* 메모 섹션 */}
-          <MemoText>{room.memo || ''}</MemoText> {/* 메모 텍스트 표시 */}
+      <BottomSection>
+        <MemoSection>
+          <MemoText>{room.memo || ''}</MemoText>
         </MemoSection>
-        <CardIconsContainer> {/* 카드 아이콘 컨테이너 */}
-          {needsCardAlert ? ( // 카드 경고가 필요한 경우
+        <CardIconsContainer>
+          {needsCardAlert ? (
             <AlertAnimation>
-              <IoIosWarning size={30} color="#FF0000" /> {/* 경고 아이콘 표시 */}
+              <IoIosWarning size={30} color="#FF0000" />
             </AlertAnimation>
-          ) : ( // 카드 경고가 필요하지 않은 경우
+          ) : (
             <>
-              <CardIconWrapper> {/* 메인 카드 아이콘 래퍼 */}
-                <CardLabel>M</CardLabel> {/* 메인 카드 라벨 */}
-                <CardIcon active={mainCard}> {/* 메인 카드 활성 상태에 따른 아이콘 */}
-                  {mainCard ? <MdCreditCard /> : <MdCreditCardOff />} {/* 메인 카드 상태에 따라 아이콘 변경 */}
+              <CardIconWrapper>
+                <CardLabel>M</CardLabel>
+                <CardIcon active={mainCard}>
+                  {mainCard ? <MdCreditCard /> : <MdCreditCardOff />}
                 </CardIcon>
               </CardIconWrapper>
-              <CardIconWrapper> {/* 서브 카드 아이콘 래퍼 */}
-                <CardLabel>S</CardLabel> {/* 서브 카드 라벨 */}
-                <CardIcon active={subCard}> {/* 서브 카드 활성 상태에 따른 아이콘 */}
-                  {subCard ? <MdCreditCard /> : <MdCreditCardOff />} {/* 서브 카드 상태에 따라 아이콘 변경 */}
+              <CardIconWrapper>
+                <CardLabel>S</CardLabel>
+                <CardIcon active={subCard}>
+                  {subCard ? <MdCreditCard /> : <MdCreditCardOff />}
                 </CardIcon>
               </CardIconWrapper>
             </>
