@@ -1,211 +1,98 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import axios from 'axios';
-import { stayTypeMap } from './reservationSettingsStore';
-import { formatDate } from './reservationStore';
 
-/**
- * 객실 관리 스토어
- * 
- * 연관 스토어:
- * - reservationSettingsStore: 기본 요금 및 설정
- * - reservationStore: 예약 관리
- * 
- * API 연계:
- * - /api/mypage/rooms: 객실 정보 CRUD
- * - /api/mypage/rooms/available: 가용 객실 조회
- */
-const useRoomStore = create((set, get) => ({
-  rooms: [],
-  isLoading: false,
-  error: null,
+const useRoomStore = create(persist(
+  (set, get) => ({
+    rooms: [],
+    isLoading: false,
+    error: null,
 
-  /**
-   * 객실별 설정 조회
-   * @param {string} roomNumber - 객실 번호
-   * @param {string} stayType - 숙박 타입
-   * 
-   * 처리 과정:
-   * 1. 객실별 설정 확인
-   * 2. 공통 설정과 병합
-   * 3. 판매 제한 체크
-   * 
-   * 사용처:
-   * - 예약 생성 시 요금 계산
-   * - 객실 정보 표시
-   */
-  getRoomSettings: (roomNumber, stayType) => {
-    const room = get().rooms.find(r => r.number === roomNumber);
-    const commonSettings = useReservationSettingsStore.getState().settings;
-    
-    if (!room || !commonSettings) {
-      console.log('설정을 찾을 수 없음:', { room, commonSettings });
-      return null;
-    }
+    // 방 정보를 가져오는 함수
+    fetchRooms: async () => {
+      set({ isLoading: true, error: null });
+      try {
+        const response = await axios.get('/api/mypage/rooms');
+        console.log('Raw API Response:', response.data); // 디버깅
 
-    if (!room.salesLimit[stayType]) {
-      console.log(`${roomNumber}호 ${stayType} 판매 제한됨`);
-      return null;
-    }
+        const mappedRooms = response.data.map(room => {
+          // room_id가 유효한지 확인
+          const parsedRoomId = parseInt(room.room_id);
+          if (isNaN(parsedRoomId)) {
+            console.error('Invalid room_id in response:', room);
+            return null;
+          }
 
-    // 객실별 요금과 공통 요금 병합
-    const rates = {
-      weekday: room.rates[`${stayType}_weekday`] || commonSettings[stayType]?.weekday_rate,
-      friday: room.rates[`${stayType}_friday`] || commonSettings[stayType]?.friday_rate,
-      weekend: room.rates[`${stayType}_weekend`] || commonSettings[stayType]?.weekend_rate
-    };
-
-    console.log('최종 객실 설정:', {
-      roomNumber,
-      stayType,
-      rates,
-      useCustomRates: !!room.rates[`${stayType}_weekday`]
-    });
-
-    return {
-      ...commonSettings[stayType],
-      ...rates,
-      roomNumber
-    };
-  },
-
-  /**
-   * 예약 가능 객실 조회
-   * @param {string} stayType - 숙박 타입
-   * @param {Date} checkIn - 체크인 날짜
-   * @param {Date} checkOut - 체크아웃 날짜
-   * 
-   * 처리 과정:
-   * 1. 판매 제한 체크
-   * 2. 날짜 유효성 검증
-   * 3. API 호출로 가용성 확인
-   * 4. 요금 계산
-   * 
-   * 사용처:
-   * - 예약 생성 시 객실 선택
-   * - 캘린더 뷰 가용 객실 표시
-   */
-  getAvailableRooms: async (stayType, checkIn, checkOut) => {
-    try {
-      const rooms = get().rooms;
-      const mappedType = stayTypeMap[stayType];
-      
-      // 유효성 검증
-      if (!mappedType) {
-        throw new Error('잘못된 숙박 유형입니다.');
-      }
-
-      if (checkIn >= checkOut) {
-        throw new Error('체크아웃 시간은 체크인 시간보다 이후여야 합니다.');
-      }
-
-      // KST 시간 변환
-      const formatToKST = (date) => {
-        const d = new Date(date);
-        return d.toISOString();
-      };
-
-      // 판매 제한 필터링
-      const availableRooms = rooms.filter(room => {
-        return room.salesLimit && !room.salesLimit[mappedType];
-      });
-
-      // API로 가용성 확인
-      const response = await axios.get('/api/mypage/rooms/available', {
-        params: {
-          stayType: mappedType,
-          checkIn: formatToKST(checkIn),
-          checkOut: formatToKST(checkOut)
-        }
-      });
-
-      // 최종 가용 객실 목록 생성
-      const finalAvailableRooms = availableRooms
-        .filter(room => response.data.some(availableRoom => availableRoom.number === room.number))
-        .map(room => {
-          const settings = get().getRoomSettings(room.number, mappedType);
           return {
-            ...room,
-            price: settings ? calculatePrice(settings, checkIn, checkOut) : 0
+            room_id: parsedRoomId,
+            room_number: room.room_number?.toString() || '',
+            room_floor: room.room_floor || '',
+            room_building: room.room_building || '',
+            room_name: room.room_name || '',
+            room_type: room.room_type || '',
+            show_floor: Boolean(room.show_floor),
+            show_building: Boolean(room.show_building),
+            show_name: Boolean(room.show_name),
+            show_type: Boolean(room.show_type),
+            hourly: Boolean(room.hourly),
+            nightly: Boolean(room.nightly),
+            long_term: Boolean(room.long_term),
+            rate_hourly_weekday: parseInt(room.rate_hourly_weekday) || 0,
+            rate_hourly_friday: parseInt(room.rate_hourly_friday) || 0,
+            rate_hourly_weekend: parseInt(room.rate_hourly_weekend) || 0,
+            rate_nightly_weekday: parseInt(room.rate_nightly_weekday) || 0,
+            rate_nightly_friday: parseInt(room.rate_nightly_friday) || 0,
+            rate_nightly_weekend: parseInt(room.rate_nightly_weekend) || 0
           };
+        }).filter(room => room !== null); // 유효하지 않은 데이터 필터링
+
+        console.log('Mapped rooms:', mappedRooms); // 디버깅
+        set({ rooms: mappedRooms, isLoading: false, error: null });
+      } catch (error) {
+        console.error('객실 조회 실패:', error);
+        set({ error: error.response?.data?.error || '객실 조회에 실패했습니다.', isLoading: false });
+      }
+    },
+
+    // 방과 요금을 업데이트하는 함수
+    updateRoom: async (room_id, updatedData) => {
+      set({ isLoading: true, error: null });
+      try {
+        console.log('Updating room:', { room_id, updatedData }); // 디버깅
+
+        if (!room_id || isNaN(room_id)) {
+          throw new Error('유효하지 않은 room_id입니다.');
+        }
+
+        const response = await axios.put('/api/mypage/rooms', {
+          room_id,
+          ...updatedData.roomData,
+          rates: updatedData.ratesData
         });
 
-      return finalAvailableRooms;
-    } catch (error) {
-      console.error('가용 객실 조회 실패:', error);
-      return [];
-    }
-  },
-
-  /**
-   * 전체 객실 정보 조회
-   * 
-   * 처리 과정:
-   * 1. API 호출
-   * 2. 응답 데이터 구조화
-   * 3. 상태 업데이트
-   * 
-   * 사용처:
-   * - 객실 관리 페이지
-   * - 대시보드 현황
-   */
-  fetchRooms: async () => {
-    console.log('객실 정보 로딩 시작');
-    set({ isLoading: true });
-    try {
-      const response = await axios.get('/api/mypage/rooms');
-      
-      const roomsWithSettings = response.data.map(room => ({
-        ...room,
-        display: {
-          floor: room.show_floor || false,
-          building: room.show_building || false,
-          name: room.show_name || false,
-          type: room.show_type || false
-        },
-        salesLimit: {
-          hourly: room.hourly || false,
-          nightly: room.nightly || false,
-          long_term: room.long_term || false
-        },
-        rates: {
-          hourly_weekday: room.hourly_weekday || '',
-          hourly_friday: room.hourly_friday || '',
-          hourly_weekend: room.hourly_weekend || '',
-          nightly_weekday: room.nightly_weekday || '',
-          nightly_friday: room.nightly_friday || '',
-          nightly_weekend: room.nightly_weekend || ''
+        if (response.status === 200) {
+          const updatedRooms = get().rooms.map((room) =>
+            room.room_id === room_id ? { ...room, ...response.data } : room
+          );
+          set({ rooms: updatedRooms, isLoading: false, error: null });
+          return response.data;
         }
-      }));
+      } catch (error) {
+        console.error('객실 수정 실패:', error);
+        set({ 
+          error: error.response?.data?.error || error.message || '객실 수정에 실패했습니다.', 
+          isLoading: false 
+        });
+        throw error;
+      }
+    },
 
-      set({ 
-        rooms: roomsWithSettings,
-        isLoading: false, 
-        error: null 
-      });
-
-      return roomsWithSettings;
-    } catch (error) {
-      console.error('객실 정보 로딩 실패:', error);
-      set({ error: error.message, isLoading: false });
-      throw error;
-    }
-  },
-
-  /**
-   * 정렬된 객실 번호 목록 반환
-   * 
-   * 사용처:
-   * - 객실 선택 드롭다운
-   * - 객실 목록 표시
-   */
-  getSortedRoomNumbers: () => {
-    const { rooms } = get();
-    if (!rooms.length) return [];
-    
-    return rooms
-      .map(room => room.number)
-      .sort((a, b) => parseInt(a) - parseInt(b));
+    clearError: () => set({ error: null }),
+  }),
+  {
+    name: 'room-storage', // 저장소 이름 지정
+    getStorage: () => (typeof window !== "undefined" ? localStorage : null), // SSR 문제 해결
   }
-}));
+));
 
 export default useRoomStore;

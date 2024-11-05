@@ -1,11 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
-import { format, parse } from 'date-fns';
-import { ko } from 'date-fns/locale';
 import { 
   STAY_TYPES,
-  DEFAULT_TIMES,
   DEFAULT_RATES,
   DEFAULT_AVAILABLE_DAYS
 } from '../constants/reservation';
@@ -24,13 +21,9 @@ const useReservationSettingsStore = create(
       error: null,
       lastFetched: null,
 
-      formatTimeToAmPm: (time) => {
-        try {
-          const parsed = parse(time, 'HH:mm', new Date());
-          return format(parsed, 'a h:mm', { locale: ko });
-        } catch {
-          return time;
-        }
+      // 시간을 HH:mm:ss 형식에서 HH:mm 형식으로 변환하는 함수
+      formatTimeToHHmm: (time) => {
+        return time ? time.slice(0, 5) : '';  // 'HH:mm:ss' -> 'HH:mm'
       },
 
       toggleDay: (currentDays, dayIndex) => {
@@ -42,7 +35,7 @@ const useReservationSettingsStore = create(
       fetchSettings: async (forceFetch = false) => {
         const now = Date.now();
         const lastFetched = get().lastFetched;
-        
+
         if (!forceFetch && lastFetched && (now - lastFetched < CACHE_DURATION)) {
           return;
         }
@@ -63,8 +56,8 @@ const useReservationSettingsStore = create(
               mappedSettings[type] = {
                 stay_type: type,
                 available_days: setting.available_days || DEFAULT_AVAILABLE_DAYS,
-                check_in_time: setting.check_in_time || DEFAULT_TIMES.CHECK_IN,
-                check_out_time: setting.check_out_time || DEFAULT_TIMES.CHECK_OUT,
+                check_in_time: get().formatTimeToHHmm(setting.check_in_time),  // HH:mm 형식으로 변환
+                check_out_time: get().formatTimeToHHmm(setting.check_out_time), // HH:mm 형식으로 변환
                 weekday_rate: setting.weekday_rate || DEFAULT_RATES.WEEKDAY,
                 friday_rate: setting.friday_rate || DEFAULT_RATES.FRIDAY,
                 weekend_rate: setting.weekend_rate || DEFAULT_RATES.WEEKEND
@@ -92,58 +85,27 @@ const useReservationSettingsStore = create(
       updateSettings: async (type, newSettings) => {
         set({ isLoading: true, error: null });
         try {
-          const currentSettings = get().settings[type];
-          const changedFields = {};
-          
-          Object.keys(newSettings).forEach(key => {
-            if (newSettings[key] !== currentSettings?.[key]) {
-              if (key === 'check_in_time' || key === 'check_out_time') {
-                changedFields[key] = newSettings[key];
-              }
-              else if (['weekday_rate', 'friday_rate', 'weekend_rate'].includes(key)) {
-                changedFields[key] = parseInt(newSettings[key]);
-              }
-              else if (key === 'available_days') {
-                changedFields[key] = newSettings[key];
-              }
-              else {
-                changedFields[key] = newSettings[key];
-              }
-            }
-          });
-
-          if (Object.keys(changedFields).length === 0) {
-            return currentSettings;
-          }
-
+          // 모든 설정을 서버에 보내서 업데이트하도록 처리
           const response = await axios.put('/api/mypage/reservation-settings', {
             stay_type: type,
-            ...changedFields
+            ...newSettings
           });
 
+          // 서버 응답이 성공적일 경우 상태 업데이트
           if (response.data) {
-            const updatedSettings = { ...get().settings };
-            updatedSettings[type] = {
-              ...response.data,
-              stay_type: type
-            };
-            
-            set({ 
-              settings: updatedSettings, 
-              isLoading: false,
-              lastFetched: Date.now()
-            });
-            
+            // 전체 설정을 다시 가져와서 최신 상태 유지
+            await get().fetchSettings(true);
+            set({ isLoading: false, lastFetched: Date.now() });
             return response.data;
           }
         } catch (error) {
-          set({ 
+          set({
             error: {
               message: '설정 업데이트에 실패했습니다.',
               action: '입력값을 확인하고 다시 시도해주세요.',
               retryFn: () => get().updateSettings(type, newSettings)
-            }, 
-            isLoading: false 
+            },
+            isLoading: false
           });
           throw error;
         }
@@ -160,5 +122,6 @@ const useReservationSettingsStore = create(
     }
   )
 );
+
 
 export default useReservationSettingsStore;

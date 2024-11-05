@@ -1,106 +1,89 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import styled from 'styled-components';
 import { Button, Input, Pagination } from '../common/FormComponents';
 import { useRouter } from 'next/router';
+import useRoomStore from '@/src/store/roomStore';
 
 const RoomSettings = () => {
+  const { rooms, isLoading, error, fetchRooms, updateRoom: updateRoomStore } = useRoomStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
-    fetchRooms();
-  }, []);
-
-  useEffect(() => {
-    const handleRoomUpdate = (event) => {
-      const updatedRoom = event.detail;
-      setRooms(prevRooms => 
-        prevRooms.map(room => 
-          room.id === updatedRoom.id ? {
-            ...updatedRoom,
-            display: {
-              floor: updatedRoom.show_floor,
-              building: updatedRoom.show_building,
-              name: updatedRoom.show_name,
-              type: updatedRoom.show_type
-            }
-          } : room
-        )
-      );
+    const loadRooms = async () => {
+      await fetchRooms();
+      console.log('Loaded rooms:', rooms);
     };
+    loadRooms();
+  }, [fetchRooms]);
 
-    window.addEventListener('roomUpdated', handleRoomUpdate);
-    
-    return () => {
-      window.removeEventListener('roomUpdated', handleRoomUpdate);
-    };
-  }, []);
-
-  const fetchRooms = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await axios.get('/api/mypage/rooms');
-      console.log('API 응답:', response.data);
-      setRooms(response.data);
-    } catch (error) {
-      console.error('객실 정보를 가져오는 데 실패했습니다:', error);
-      setError(`객실 정보를 불러오는 중 오류가 발생했습니다: ${error.response?.data?.details || error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) return <div>로딩 중...</div>;
+  if (isLoading) return <div>로딩 중...</div>;
   if (error) return <div>{error}</div>;
 
   const itemsPerPage = 10;
   const totalPages = Math.ceil(rooms.length / itemsPerPage);
 
-  const handleEdit = (roomNumber) => {
-    router.push(`/mypage?section=room-edit&roomNumber=${roomNumber}`);
+  const handleEdit = (room) => {
+    console.log('Editing room (before):', room);
+
+    if (!room || typeof room.room_id !== 'number' || isNaN(room.room_id)) {
+      console.error('Invalid room_id:', room);
+      alert('유효하지 않은 객실 정보입니다.');
+      return;
+    }
+
+    if (!room.room_number) {
+      console.error('Missing room_number:', room);
+      alert('객실 번호가 없습니다.');
+      return;
+    }
+
+    console.log('Editing room (after validation):', room);
+    router.push(`/mypage?section=room-edit&roomNumber=${room.room_number}&roomId=${room.room_id}`);
   };
 
-  const handleUpdateRoom = async (roomData) => {
+  const handleRoomUpdate = async (roomData) => {
     try {
-      console.log('업데이트할 룸 데이터:', roomData);
+      const room_id = roomData.room_id;
+      
+      if (!room_id) {
+        throw new Error('객실 ID가 누락되었습니다.');
+      }
 
-      const updateData = {
-        id: roomData.id,
-        floor: roomData.floor || null,
-        building: roomData.building || null,
-        name: roomData.name || null,
-        display: {
-          floor: Boolean(roomData.display?.showFloor),
-          building: Boolean(roomData.display?.showBuilding),
-          name: Boolean(roomData.display?.showName),
-          type: Boolean(roomData.display?.showType)
+      const requiredFields = ['floor', 'building', 'name'];
+      const missingFields = requiredFields.filter(field => !roomData[field] && roomData[field] !== null);
+      
+      if (missingFields.length > 0) {
+        throw new Error(`다음 필드가 누락되었습니다: ${missingFields.join(', ')}`);
+      }
+
+      const roomDataToUpdate = {
+        roomData: {
+          floor: roomData.floor || null,
+          building: roomData.building || null,
+          name: roomData.name || null,
+          show_floor: Boolean(roomData.show_floor),
+          show_building: Boolean(roomData.show_building),
+          show_name: Boolean(roomData.show_name),
+          show_type: Boolean(roomData.show_type),
         },
-        salesLimit: roomData.salesLimit || {},
-        rates: roomData.rates || {}
+        ratesData: roomData.rates || {}
       };
 
-      console.log('서버로 보낼 데이터:', updateData);
-
-      const response = await axios.put('/api/mypage/rooms', updateData);
-      
-      if (response.status === 200) {
-        console.log('업데이트 성공:', response.data);
-        await fetchRooms(); // 목록 새로고침
-        alert('객실 정보가 성공적으로 업데이트되었습니다.');
-      }
+      await updateRoomStore(room_id, roomDataToUpdate);
+      alert('객실 정보가 성공적으로 업데이트되었습니다.');
     } catch (error) {
       console.error('객실 정보 업데이트 실패:', error);
-      alert('객실 정보 업데이트에 실패했습니다: ' + (error.response?.data?.message || error.message));
+      alert(error.message || '객실 정보 업데이트에 실패했습니다.');
     }
   };
 
-  const filteredRooms = rooms.filter((room) => room.number.includes(searchTerm));
+  const filteredRooms = rooms.filter((room) => {
+    if (!room || !room.room_number) return false;
+    return room.room_number.toString().includes(searchTerm);
+  });
+
   const paginatedRooms = filteredRooms.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -132,18 +115,29 @@ const RoomSettings = () => {
             </tr>
           </thead>
           <tbody>
-            {paginatedRooms.map((room, index) => (
-              <tr key={index}>
-                <TableCell>{room.floor}</TableCell>
-                <TableCell>{room.building}</TableCell>
-                <TableCell>{room.number}</TableCell>
-                <TableCell>{room.name}</TableCell>
-                <TableCell>{room.type}</TableCell>
-                <TableCell>
-                  <ActionButton onClick={() => handleEdit(room.number)}>수정</ActionButton>
-                </TableCell>
-              </tr>
-            ))}
+            {paginatedRooms.map((room, index) => {
+              console.log(`Room ${index}:`, room);
+              
+              if (!room || !room.room_id) {
+                console.error(`Invalid room at index ${index}:`, room);
+                return null;
+              }
+
+              return (
+                <tr key={room.room_id}>
+                  <TableCell>{room.room_floor}</TableCell>
+                  <TableCell>{room.room_building}</TableCell>
+                  <TableCell>{room.room_number}</TableCell>
+                  <TableCell>{room.room_name}</TableCell>
+                  <TableCell>{room.room_type}</TableCell>
+                  <TableCell>
+                    <ActionButton onClick={() => handleEdit(room)}>
+                      {room.room_number}호 수정
+                    </ActionButton>
+                  </TableCell>
+                </tr>
+              );
+            })}
           </tbody>
         </MessageTable>
       </TableContainer>
@@ -160,6 +154,7 @@ const RoomSettings = () => {
 
 export default RoomSettings;
 
+// 스타일 정의
 const Container = styled.div`
   display: flex;
   flex-direction: column;

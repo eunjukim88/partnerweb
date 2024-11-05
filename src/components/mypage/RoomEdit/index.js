@@ -1,10 +1,504 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import axios from 'axios';
+import useRoomStore from '@/src/store/roomStore'; // roomStore 임포트 추가
 import styled from 'styled-components';
 import { FaArrowLeft, FaExclamationCircle, FaInfoCircle } from 'react-icons/fa';
 
-// 1. 기본 스타일 컴포넌트들 먼저 정의
+
+const RoomEdit = () => {
+  const router = useRouter();
+  const { roomNumber, roomId } = router.query;
+  console.log('Router query:', router.query); // 디버깅
+
+  useEffect(() => {
+    if (roomNumber) {
+      console.log('Room number from URL:', roomNumber); // 디버깅
+      document.title = `${roomNumber}호 수정`; // 페이지 타이틀 설정
+    }
+  }, [roomNumber]);
+
+  const { rooms, fetchRooms, updateRoom, isLoading, error } = useRoomStore(); // store에서 상태와 메서드 가져오기
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  const [room, setRoom] = useState({
+    room_id: '',
+    room_number: '',
+    room_floor: '',
+    room_building: '',
+    room_name: '',
+    room_type: '',
+    display: {
+      floor: false,
+      building: false,
+      name: false,
+      type: false,
+    },
+    salesLimit: {
+      hourly: false,
+      nightly: false,
+      long_term: false,
+    },
+    rates: {
+      rate_hourly_weekday: 0,
+      rate_hourly_friday: 0,
+      rate_hourly_weekend: 0,
+      rate_nightly_weekday: 0,
+      rate_nightly_friday: 0,
+      rate_nightly_weekend: 0,
+    },
+  });
+
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchRooms();
+      setIsDataLoaded(true);
+    };
+    loadData();
+  }, [fetchRooms]);
+
+  useEffect(() => {
+    if (isDataLoaded && rooms.length > 0 && roomNumber) {
+      console.log('Current rooms:', rooms);
+      console.log('Looking for roomNumber:', roomNumber);
+
+      const roomData = rooms.find(r => {
+        console.log('Comparing:', {
+          current: r.room_number?.toString(),
+          target: roomNumber?.toString()
+        });
+        return r.room_number?.toString() === roomNumber?.toString();
+      });
+
+      console.log('Found room data:', roomData);
+
+      if (roomData && typeof roomData.room_id === 'number' && !isNaN(roomData.room_id)) {
+        setRoom({
+          room_id: roomData.room_id,
+          room_number: roomData.room_number,
+          room_floor: roomData.room_floor || '',
+          room_building: roomData.room_building || '',
+          room_name: roomData.room_name || '',
+          room_type: roomData.room_type || '',
+          display: {
+            floor: Boolean(roomData.show_floor),
+            building: Boolean(roomData.show_building),
+            name: Boolean(roomData.show_name),
+            type: Boolean(roomData.show_type)
+          },
+          salesLimit: {
+            hourly: Boolean(roomData.hourly),
+            nightly: Boolean(roomData.nightly),
+            long_term: Boolean(roomData.long_term)
+          },
+          rates: {
+            rate_hourly_weekday: parseInt(roomData.rate_hourly_weekday) || 0,
+            rate_hourly_friday: parseInt(roomData.rate_hourly_friday) || 0,
+            rate_hourly_weekend: parseInt(roomData.rate_hourly_weekend) || 0,
+            rate_nightly_weekday: parseInt(roomData.rate_nightly_weekday) || 0,
+            rate_nightly_friday: parseInt(roomData.rate_nightly_friday) || 0,
+            rate_nightly_weekend: parseInt(roomData.rate_nightly_weekend) || 0
+          }
+        });
+      } else {
+        console.error('Invalid room data found:', roomData);
+      }
+    }
+  }, [rooms, roomNumber, isDataLoaded]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    console.log('Input change:', name, value); // 디버깅
+
+    // 필드명 매핑
+    const fieldMapping = {
+      floor: 'room_floor',
+      building: 'room_building',
+      name: 'room_name',
+      type: 'room_type'
+    };
+
+    const mappedName = fieldMapping[name] || name;
+
+    setRoom(prev => ({
+      ...prev,
+      [mappedName]: value
+    }));
+  };
+
+  const handleCheckboxChange = (type) => {
+    setRoom((prev) => ({
+      ...prev,
+      salesLimit: {
+        ...prev.salesLimit,
+        [type]: !prev.salesLimit[type],
+      },
+    }));
+  };
+
+  const handleRateChange = (field, value) => {
+    const unformattedValue = unformatNumber(value);
+    const numValue = parseInt(unformattedValue, 10);
+    
+    if (isNaN(numValue) || numValue < 0) {
+      return;
+    }
+
+    setRoom((prev) => ({
+      ...prev,
+      rates: {
+        ...prev.rates,
+        [field]: numValue,
+      },
+    }));
+  };
+
+  const handleSave = async () => {
+    try {
+      console.log('Saving room data:', room); // 디버깅
+
+      if (!roomId) {
+        throw new Error('객실 ID가 누락되었습니다.');
+      }
+
+      const roomData = {
+        room_id: parseInt(roomId),
+        room_floor: room.room_floor,
+        room_building: room.room_building,
+        room_name: room.room_name,
+        room_type: room.room_type,
+        show_floor: room.display.floor,
+        show_building: room.display.building,
+        show_name: room.display.name,
+        show_type: room.display.type,
+        hourly: room.salesLimit.hourly,
+        nightly: room.salesLimit.nightly,
+        long_term: room.salesLimit.long_term
+      };
+
+      await updateRoom(parseInt(roomId), {
+        roomData,
+        ratesData: room.rates
+      });
+
+      alert('저장이 완료되었습니다.');
+      router.push('/mypage?section=rooms');
+    } catch (error) {
+      console.error('저장 실패:', error);
+      alert(error.message || '저장에 실패했습니다.');
+    }
+  };
+
+  const handleDisplayChange = (field) => {
+    setRoom((prev) => ({
+      ...prev,
+      display: {
+        ...prev.display,
+        [field]: !prev.display[field],
+      },
+    }));
+  };
+
+  useEffect(() => {
+    const handleRoomUpdate = (event) => {
+      const updatedRoom = event.detail;
+      setRoom((prevRoom) =>
+        prevRoom.room_id === updatedRoom.room_id ? updatedRoom : prevRoom
+      );
+    };
+
+    window.addEventListener('roomUpdated', handleRoomUpdate);
+
+    return () => {
+      window.removeEventListener('roomUpdated', handleRoomUpdate);
+    };
+  }, []);
+
+  if (!isDataLoaded || isLoading) return <div>로딩 중...</div>;
+  if (error) return <div>{error}</div>;
+
+  const formatNumber = (value) => {
+    if (!value) return '';
+    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
+  const unformatNumber = (value) => {
+    if (!value) return '';
+    return value.replace(/[^\d]/g, '');
+  };
+
+  return (
+    <Container>
+      <Header>
+        <BackButton onClick={() => router.push('/mypage?section=rooms')}>
+          <FaArrowLeft size={20} />
+        </BackButton>
+        <Title>{roomNumber}호 수정</Title>
+      </Header>
+
+      <Section>
+        <SectionHeader>
+          <SectionTitle>객실정보 설정</SectionTitle>
+          <InfoText>
+            <FaInfoCircle />
+            <span>ON 상태일 때 해당 정보가 객실현황 카드에 표시됩니다.</span>
+          </InfoText>
+        </SectionHeader>
+
+        <FormRow>
+          <FormGroup>
+            <Label>층수</Label>
+            <Input
+              type="text"
+              name="floor"
+              value={room.room_floor || ''}
+              onChange={handleInputChange}
+              placeholder="층수 입력"
+            />
+            <StyledSwitch>
+              <input
+                type="checkbox"
+                checked={room.display?.floor || false}
+                onChange={() => handleDisplayChange('floor')}
+              />
+              <span></span>
+            </StyledSwitch>
+          </FormGroup>
+          <FormGroup>
+            <Label>동수</Label>
+            <Input
+              type="text"
+              name="building"
+              value={room.room_building || ''}
+              onChange={handleInputChange}
+              placeholder="동수 입력"
+            />
+            <StyledSwitch>
+              <input
+                type="checkbox"
+                checked={room.display?.building || false}
+                onChange={() => handleDisplayChange('building')}
+              />
+              <span></span>
+            </StyledSwitch>
+          </FormGroup>
+        </FormRow>
+
+        <FormRow>
+          <FormGroup>
+            <Label>객실 이름</Label>
+            <Input
+              type="text"
+              name="name"
+              value={room.room_name || ''}
+              onChange={handleInputChange}
+              placeholder="객실 이름 입력"
+            />
+            <StyledSwitch>
+              <input
+                type="checkbox"
+                checked={room.display?.name || false}
+                onChange={() => handleDisplayChange('name')}
+              />
+              <span></span>
+            </StyledSwitch>
+          </FormGroup>
+          <FormGroup>
+            <Label>객실 타입</Label>
+            <Input
+              type="text"
+              name="type"
+              value={room.room_type || ''}
+              onChange={handleInputChange}
+              placeholder="객실 타입 입력"
+            />
+            <StyledSwitch>
+              <input
+                type="checkbox"
+                checked={room.display?.type || false}
+                onChange={() => handleDisplayChange('type')}
+              />
+              <span></span>
+            </StyledSwitch>
+          </FormGroup>
+        </FormRow>
+      </Section>
+
+      <Section>
+        <SectionHeader>
+          <SectionTitle>판매 제한</SectionTitle>
+          <InfoText>
+            <FaInfoCircle />
+            <span>선택한 객실은 해당 유형의 예약을 받을 수 없습니다.</span>
+          </InfoText>
+        </SectionHeader>
+        <CheckboxGroup>
+          <CheckboxLabel>
+            <StyledSwitch>
+              <input
+                type="checkbox"
+                checked={room.salesLimit.hourly}
+                onChange={() => handleCheckboxChange('hourly')}
+              />
+              <span></span>
+            </StyledSwitch>
+            <CheckboxText>대실</CheckboxText>
+          </CheckboxLabel>
+          <CheckboxLabel>
+            <StyledSwitch>
+              <input
+                type="checkbox"
+                checked={room.salesLimit.nightly}
+                onChange={() => handleCheckboxChange('nightly')}
+              />
+              <span></span>
+            </StyledSwitch>
+            <CheckboxText>숙박</CheckboxText>
+          </CheckboxLabel>
+          <CheckboxLabel>
+            <StyledSwitch>
+              <input
+                type="checkbox"
+                checked={room.salesLimit.long_term}
+                onChange={() => handleCheckboxChange('long_term')}
+              />
+              <span></span>
+            </StyledSwitch>
+            <CheckboxText>장기</CheckboxText>
+          </CheckboxLabel>
+        </CheckboxGroup>
+      </Section>
+
+      <Section>
+        <SectionHeader>
+          <SectionTitle>개별 단가 설정</SectionTitle>
+          <InfoText>
+            <FaExclamationCircle />
+            <span>개별 단가 설정 시 일괄 요금 적용이 불능합니다. 필요한 경우에만 입력하세요.</span>
+          </InfoText>
+        </SectionHeader>
+        <RateTableContainer>
+          <RateTableWrapper>
+            <RateTable>
+              <thead>
+                <tr>
+                  <th>대실</th>
+                  <th>평일</th>
+                  <th>금요일</th>
+                  <th>주말</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>단가</td>
+                  <td>
+                    <RateInput
+                      value={room.rates ? formatNumber(room.rates.rate_hourly_weekday) : ''}
+                      onChange={(e) => handleRateChange('rate_hourly_weekday', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <RateInput
+                      value={room.rates ? formatNumber(room.rates.rate_hourly_friday) : ''}
+                      onChange={(e) => handleRateChange('rate_hourly_friday', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <RateInput
+                      value={room.rates ? formatNumber(room.rates.rate_hourly_weekend) : ''}
+                      onChange={(e) => handleRateChange('rate_hourly_weekend', e.target.value)}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </RateTable>
+          </RateTableWrapper>
+          <RateTableWrapper>
+            <RateTable>
+              <thead>
+                <tr>
+                  <th>숙박</th>
+                  <th>평일</th>
+                  <th>금요일</th>
+                  <th>주말</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>단가</td>
+                  <td>
+                    <RateInput
+                      value={room.rates ? formatNumber(room.rates.rate_nightly_weekday) : ''}
+                      onChange={(e) => handleRateChange('rate_nightly_weekday', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <RateInput
+                      value={room.rates ? formatNumber(room.rates.rate_nightly_friday) : ''}
+                      onChange={(e) => handleRateChange('rate_nightly_friday', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <RateInput
+                      value={room.rates ? formatNumber(room.rates.rate_nightly_weekend) : ''}
+                      onChange={(e) => handleRateChange('rate_nightly_weekend', e.target.value)}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </RateTable>
+          </RateTableWrapper>
+        </RateTableContainer>
+      </Section>
+
+      <Button onClick={handleSave}>저장</Button>
+    </Container>
+  );
+};
+
+export default RoomEdit;
+
+
+
+const Section = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const SectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  margin-top: 1rem;
+`;
+
+const SectionTitle = styled.h3`
+  font-size: 1rem;
+  width: 15%;
+  font-weight: bold;
+  margin: 0;
+  margin-right: 1rem;
+`;
+
+const InfoText = styled.p`
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #666;
+  width: 85%;
+  margin: 0;
+  padding: 0.5rem;
+  background-color: #f8f8f8;
+  border-radius: 0.25rem;
+
+  svg {
+    margin-right: 0.5rem;
+    color: #f39c12; // 주황색으로 변경
+  }
+
+  span {
+    flex: 1;
+  }
+`;
+
 const Input = styled.input`
   flex: 1;
   min-width: 0;
@@ -217,471 +711,3 @@ const Button = styled.button`
     background-color: #0d8bf2;
   }
 `;
-
-const RoomEdit = ({ roomNumber }) => {
-  const router = useRouter();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const [room, setRoom] = useState({
-    id: '',
-    number: '',
-    floor: '',
-    building: '',
-    name: '',
-    type: '',
-    display: {
-      floor: false,
-      building: false,
-      name: false,
-      type: false
-    },
-    salesLimit: {
-      hourly: false,
-      nightly: false,
-      long_term: false
-    },
-    rates: {
-      hourly_weekday: 0,
-      hourly_friday: 0,
-      hourly_weekend: 0,
-      nightly_weekday: 0,
-      nightly_friday: 0,
-      nightly_weekend: 0
-    }
-  });
-
-  useEffect(() => {
-    const checkLoginStatus = () => {
-      const storedToken = localStorage.getItem('token');
-      const loggedIn = !!storedToken;
-      setIsLoggedIn(loggedIn);
-
-      if (!loggedIn) {
-        router.push('/login');
-      }
-    };
-
-    checkLoginStatus();
-  }, [router]);
-
-  useEffect(() => {
-    if (roomNumber) {
-      fetchRoomData(roomNumber);
-    }
-  }, [roomNumber]);
-
-  const fetchRoomData = async (number) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await axios.get(`/api/mypage/rooms?number=${number}`);
-      
-      if (response.data && response.data.length > 0) {
-        const data = response.data[0];
-        setRoom(prevRoom => ({
-          ...prevRoom,
-          id: data.id,
-          number: data.number,
-          floor: data.floor || '',
-          building: data.building || '',
-          name: data.name || '',
-          type: data.type || '',
-          display: {
-            floor: data.show_floor || false,
-            building: data.show_building || false,
-            name: data.show_name || false,
-            type: data.show_type || false
-          },
-          salesLimit: {
-            hourly: data.hourly || false,
-            nightly: data.nightly || false,
-            long_term: data.long_term || false
-          },
-          rates: {
-            hourly_weekday: data.hourly_weekday || 0,
-            hourly_friday: data.hourly_friday || 0,
-            hourly_weekend: data.hourly_weekend || 0,
-            nightly_weekday: data.nightly_weekday || 0,
-            nightly_friday: data.nightly_friday || 0,
-            nightly_weekend: data.nightly_weekend || 0
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('객실 정보를 가져오는 데 실패했습니다:', error);
-      setError('객실 정보를 불러오는 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setRoom(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleCheckboxChange = (type) => {
-    setRoom(prev => ({
-      ...prev,
-      salesLimit: {
-        ...prev.salesLimit,
-        [type]: !prev.salesLimit[type]
-      }
-    }));
-  };
-
-  // 천단위 구분 쉼표 추가 함수
-  const formatNumber = (value) => {
-    if (!value) return '';
-    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  };
-
-  // 쉼표 제거 및 숫자만 추출하는 함수
-  const unformatNumber = (value) => {
-    if (!value) return '';
-    return value.replace(/[^\d]/g, '');
-  };
-
-  // 요금 입력 처리 함수 수정
-  const handleRateChange = (field, value) => {
-    setRoom(prev => ({
-      ...prev,
-      rates: {
-        ...prev.rates,
-        [field]: unformatNumber(value)
-      }
-    }));
-  };
-
-  const handleSave = async () => {
-    try {
-      const saveData = {
-        id: room.id,
-        number: room.number,
-        floor: room.floor || null,
-        building: room.building || null,
-        name: room.name || null,
-        type: room.type || null,
-        show_floor: room.display.floor,
-        show_building: room.display.building,
-        show_name: room.display.name,
-        show_type: room.display.type,
-        hourly: room.salesLimit.hourly,
-        nightly: room.salesLimit.nightly,
-        long_term: room.salesLimit.long_term,
-        hourly_weekday: parseInt(unformatNumber(room.rates.hourly_weekday)) || 0,
-        hourly_friday: parseInt(unformatNumber(room.rates.hourly_friday)) || 0,
-        hourly_weekend: parseInt(unformatNumber(room.rates.hourly_weekend)) || 0,
-        nightly_weekday: parseInt(unformatNumber(room.rates.nightly_weekday)) || 0,
-        nightly_friday: parseInt(unformatNumber(room.rates.nightly_friday)) || 0,
-        nightly_weekend: parseInt(unformatNumber(room.rates.nightly_weekend)) || 0
-      };
-
-      const response = await axios.put('/api/mypage/rooms', saveData);
-      
-      if (response.data) {
-        // 저장 성공 후 rooms 페이지의 상태를 업데이트하기 위해 이벤트를 발생시킵니다
-        const event = new CustomEvent('roomUpdated', { detail: response.data });
-        window.dispatchEvent(event);
-        
-        router.push('/mypage?section=room-settings');
-      }
-    } catch (error) {
-      console.error('저장 실패:', error);
-      setError('객실 정보 저장 중 오류가 발생했습니다.');
-    }
-  };
-
-  const handleDisplayChange = (field) => {
-    setRoom(prev => ({
-      ...prev,
-      display: {
-        ...prev.display,
-        [field]: !prev.display[field]
-      }
-    }));
-  };
-
-  useEffect(() => {
-    const handleRoomUpdate = (event) => {
-      const updatedRoom = event.detail;
-      setRoom(prevRoom => 
-        prevRoom.id === updatedRoom.id ? updatedRoom : prevRoom
-      );
-    };
-
-    window.addEventListener('roomUpdated', handleRoomUpdate);
-    
-    return () => {
-      window.removeEventListener('roomUpdated', handleRoomUpdate);
-    };
-  }, []);
-
-  if (loading) return <div>로딩 중...</div>;
-  if (error) return <div>{error}</div>;
-
-  return (
-    <Container>
-      <Header>
-        <BackButton onClick={() => router.push('/mypage?section=room-settings')}>
-          <FaArrowLeft size={20} />
-        </BackButton>
-        <Title>{roomNumber}호 수정</Title>
-      </Header>
-
-      <Section>
-        <SectionHeader>
-          <SectionTitle>객실정보 설정</SectionTitle>
-          <InfoText>
-            <FaInfoCircle />
-            <span>ON 상태일 때 해당 정보가 객실현황 카드에 표시됩니다.</span>
-          </InfoText>
-        </SectionHeader>
-
-        <FormRow>
-          <FormGroup>
-            <Label>층수</Label>
-            <Input
-              name="floor"
-              value={room.floor}
-              onChange={handleInputChange}
-            />
-            <StyledSwitch>
-              <input
-                type="checkbox"
-                checked={room.display?.floor || false}
-                onChange={() => handleDisplayChange('floor')}
-              />
-              <span></span>
-            </StyledSwitch>
-          </FormGroup>
-          <FormGroup>
-            <Label>동수</Label>
-            <Input
-              name="building"
-              value={room.building}
-              onChange={handleInputChange}
-            />
-            <StyledSwitch>
-              <input
-                type="checkbox"
-                checked={room.display?.building || false}
-                onChange={() => handleDisplayChange('building')}
-              />
-              <span></span>
-            </StyledSwitch>
-          </FormGroup>
-        </FormRow>
-
-        <FormRow>
-          <FormGroup>
-            <Label>객실 이름</Label>
-            <Input
-              name="name"
-              value={room.name}
-              onChange={handleInputChange}
-            />
-            <StyledSwitch>
-              <input
-                type="checkbox"
-                checked={room.display?.name || false}
-                onChange={() => handleDisplayChange('name')}
-              />
-              <span></span>
-            </StyledSwitch>
-          </FormGroup>
-          <FormGroup>
-            <Label>객실 타입</Label>
-            <Input
-              name="type"
-              value={room.type}
-              onChange={handleInputChange}
-            />
-            <StyledSwitch>
-              <input
-                type="checkbox"
-                checked={room.display?.type || false}
-                onChange={() => handleDisplayChange('type')}
-              />
-              <span></span>
-            </StyledSwitch>
-          </FormGroup>
-        </FormRow>
-      </Section>
-
-      <Section>
-        <SectionHeader>
-          <SectionTitle>판매 제한</SectionTitle>
-          <InfoText>
-            <FaInfoCircle />
-            <span>선택한 객실은 해당 유형의 예약을 받을 수 없습니다.</span>
-          </InfoText>
-        </SectionHeader>
-        <CheckboxGroup>
-          <CheckboxLabel>
-            <StyledSwitch>
-                <input
-                  type="checkbox"
-                  checked={room.salesLimit ? room.salesLimit.hourly : false}
-                  onChange={() => handleCheckboxChange('hourly')}
-                />
-              <span></span>
-            </StyledSwitch>
-            <CheckboxText>대실</CheckboxText>
-          </CheckboxLabel>
-          <CheckboxLabel>
-            <StyledSwitch>
-              <input
-                type="checkbox"
-                checked={room.salesLimit ? room.salesLimit.nightly : false}
-                onChange={() => handleCheckboxChange('nightly')}
-              />
-              <span></span>
-            </StyledSwitch>
-            <CheckboxText>숙박</CheckboxText>
-          </CheckboxLabel>
-          <CheckboxLabel>
-            <StyledSwitch>
-              <input
-                type="checkbox"
-                checked={room.salesLimit ? room.salesLimit.long_term : false}
-                onChange={() => handleCheckboxChange('long_term')}
-              />
-              <span></span>
-            </StyledSwitch>
-            <CheckboxText>장기</CheckboxText>
-          </CheckboxLabel>
-        </CheckboxGroup>
-      </Section>
-
-      <Section>
-        <SectionHeader>
-          <SectionTitle>개별 단가 설정</SectionTitle>
-          <InfoText>
-            <FaExclamationCircle />
-            <span>개별 단가 설정 시 일괄 요금 적용이 불능합니다. 필요한 경우에만 입력하세요.</span>
-          </InfoText>
-        </SectionHeader>
-        <RateTableContainer>
-          <RateTableWrapper>
-            <RateTable>
-              <thead>
-                <tr>
-                  <th>대실</th>
-                  <th>평일</th>
-                  <th>금요일</th>
-                  <th>주말</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>단가</td>
-                  <td>
-                  <RateInput 
-                      value={room.rates ? formatNumber(room.rates.hourly_weekday) : ''}
-                      onChange={(e) => handleRateChange('hourly_weekday', e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <RateInput 
-                      value={room.rates ? formatNumber(room.rates.hourly_friday) : ''}
-                      onChange={(e) => handleRateChange('hourly_friday', e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <RateInput 
-                      value={room.rates ? formatNumber(room.rates.hourly_weekend) : ''}
-                      onChange={(e) => handleRateChange('hourly_weekend', e.target.value)}
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </RateTable>
-          </RateTableWrapper>
-          <RateTableWrapper>
-            <RateTable>
-              <thead>
-                <tr>
-                  <th>숙박</th>
-                  <th>평일</th>
-                  <th>금요일</th>
-                  <th>주말</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>단가</td>
-                  <td>
-                    <RateInput 
-                      value={room.rates ? formatNumber(room.rates.nightly_weekday) : ''}
-                      onChange={(e) => handleRateChange('nightly_weekday', e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <RateInput 
-                      value={room.rates ? formatNumber(room.rates.nightly_friday) : ''}
-                      onChange={(e) => handleRateChange('nightly_friday', e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <RateInput 
-                      value={room.rates ? formatNumber(room.rates.nightly_weekend) : ''}
-                      onChange={(e) => handleRateChange('nightly_weekend', e.target.value)}
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </RateTable>
-          </RateTableWrapper>
-        </RateTableContainer>
-      </Section>
-
-      <Button onClick={handleSave}>저장</Button>
-    </Container>
-  );
-};
-
-export default RoomEdit;
-
-const Section = styled.div`
-  margin-bottom: 1rem;
-`;
-
-const SectionHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  margin-top: 1rem;
-`;
-
-const SectionTitle = styled.h3`
-  font-size: 1rem;
-  width: 15%;
-  font-weight: bold;
-  margin: 0;
-  margin-right: 1rem;
-`;
-
-const InfoText = styled.p`
-  display: flex;
-  align-items: center;
-  font-size: 0.75rem;
-  color: #666;
-  width: 85%;
-  margin: 0;
-  padding: 0.5rem;
-  background-color: #f8f8f8;
-  border-radius: 0.25rem;
-
-  svg {
-    margin-right: 0.5rem;
-    color: #f39c12; // 주황색으로 변경
-  }
-
-  span {
-    flex: 1;
-  }
-`;
-

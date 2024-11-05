@@ -13,35 +13,6 @@ export default async function handler(req, res) {
     await sql`BEGIN`;
 
     /**
-     * 객실 상태 설정 테이블 (room_status_settings)
-     * 
-     * 용도:
-     * - 숙박 타입별(hourly/nightly/long_term) 기본 설정
-     * - 예약 가능 요일 설정 (비트마스크)
-     * - 요일별 기본 요금 설정
-     * - 체크인/아웃 시간 설정
-     * 
-     * 연관 테이블:
-     * - rooms: status_type 필드로 참조
-     * - reservations: stay_type 필드로 참조
-     */
-    await sql`
-      CREATE TABLE IF NOT EXISTS room_status_settings (
-        setting_id SERIAL PRIMARY KEY,
-        status_type VARCHAR(50) NOT NULL CHECK (status_type IN ('hourly', 'nightly', 'long_term')),
-        available_days BIT(7) DEFAULT B'1111111',  -- 월화수목금토일, 1=가능, 0=불가능
-        rate_weekday INTEGER DEFAULT 0,            -- 평일 요금
-        rate_weekend INTEGER DEFAULT 0,            -- 주말 요금
-        rate_friday INTEGER DEFAULT 0,             -- 금요일 요금
-        check_in_time TIME DEFAULT '15:00',        -- 체크인 가능 시간
-        check_out_time TIME DEFAULT '11:00',       -- 체크아웃 시간
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(status_type)
-      )
-    `;
-
-    /**
      * 객실 테이블 (rooms)
      * 
      * 용도:
@@ -49,22 +20,17 @@ export default async function handler(req, res) {
      * - 객실 상태 관리
      * - 표시 설정 관리
      * - 판매 유형 관리
-     * 
-     * 연관 테이블:
-     * - room_status_settings: status_type 필드로 연결
-     * - room_rates: room_id로 연결
-     * - reservations: room_id로 연결
      */
     await sql`
       CREATE TABLE IF NOT EXISTS rooms (
         room_id SERIAL PRIMARY KEY,
         room_number VARCHAR(10) UNIQUE NOT NULL,
-        room_floor INTEGER NULL,
+        room_floor TEXT,
         room_building VARCHAR(50) NULL,
         room_name VARCHAR(100) NULL,
-        room_type VARCHAR(50) NULL,
+        room_type TEXT,
         reservation_status VARCHAR(50) NOT NULL DEFAULT 'vacant',
-        room_status VARCHAR(50) NULL,
+        room_status room_status_enum,
         show_floor BOOLEAN DEFAULT false,
         show_building BOOLEAN DEFAULT false,
         show_name BOOLEAN DEFAULT false,
@@ -72,7 +38,7 @@ export default async function handler(req, res) {
         hourly BOOLEAN DEFAULT false,
         nightly BOOLEAN DEFAULT false,
         long_term BOOLEAN DEFAULT false,
-        memo TEXT NULL,
+        memo TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
@@ -82,7 +48,7 @@ export default async function handler(req, res) {
      * 객실 요금 테이블 (room_rates)
      * 
      * 용도:
-     * - 객실별 개별 요금 설정 (room_status_settings 요금보다 우선 적용)
+     * - 객실별 개별 요금 설정
      * - 요일별/숙박타입별 요금 관리
      * 
      * 연관 테이블:
@@ -115,16 +81,12 @@ export default async function handler(req, res) {
      * 특징:
      * - stay_type이 PK (3개 고정값: hourly/nightly/long_term)
      * - 생성/삭제 없이 수정만 가능
-     * - available_days: room_status_settings와 동일한 비트마스크 사용
-     * 
-     * 연관 테이블:
-     * - reservations: stay_type 필드로 참조
-     * - room_status_settings: 상위 설정으로 참조
+     * - available_days: 예약 가능 요일 설정
      */
     await sql`
       CREATE TABLE IF NOT EXISTS reservation_settings (
         stay_type VARCHAR(10) PRIMARY KEY CHECK (stay_type IN ('hourly', 'nightly', 'long_term')),
-        available_days BIT(7) DEFAULT B'1111111',  -- 월화수목금토일, 1=가능, 0=불가능
+        available_days BIT(7) DEFAULT B'1111111',
         check_in_time TIME NOT NULL DEFAULT '15:00',
         check_out_time TIME NOT NULL DEFAULT '11:00',
         weekday_rate INTEGER NOT NULL DEFAULT 0,
@@ -145,12 +107,11 @@ export default async function handler(req, res) {
      * 
      * 특징:
      * - check_in/out: 한국 날짜 (YYYY-MM-DD)
-     * - check_in/out_time: room_status_settings 참조
-     * - price: room_rates 우선, 없으면 room_status_settings 참조
+     * - check_in/out_time: 체크인 및 체크아웃 시간 관리
+     * - price: 객실 요금 관리
      * 
      * 연관 테이블:
      * - rooms: room_id로 연결
-     * - room_status_settings: stay_type으로 연결
      */
     await sql`
       CREATE TABLE IF NOT EXISTS reservations (
