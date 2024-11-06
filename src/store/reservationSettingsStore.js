@@ -1,77 +1,75 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
-import { 
-  STAY_TYPES,
-  DEFAULT_RATES,
-  DEFAULT_AVAILABLE_DAYS
-} from '../constants/reservation';
 
 const CACHE_DURATION = 10 * 60 * 1000;
+
+// 기본 설정값 추가
+const DEFAULT_SETTINGS = {
+  대실: {
+    stay_type: '대실',
+    available_days: '1111111', // 모든 요일 가능
+    check_in_time: '09:00',
+    check_out_time: '21:00',
+    weekday_rate: 0,
+    friday_rate: 0,
+    weekend_rate: 0
+  },
+  숙박: {
+    stay_type: '숙박',
+    available_days: '1111111',
+    check_in_time: '15:00',
+    check_out_time: '11:00',
+    weekday_rate: 0,
+    friday_rate: 0,
+    weekend_rate: 0
+  },
+  장기: {
+    stay_type: '장기',
+    available_days: '1111111',
+    check_in_time: '15:00',
+    check_out_time: '11:00',
+    weekday_rate: 0,
+    friday_rate: 0,
+    weekend_rate: 0
+  }
+};
 
 const useReservationSettingsStore = create(
   persist(
     (set, get) => ({
-      settings: {
-        [STAY_TYPES.HOURLY]: null,
-        [STAY_TYPES.NIGHTLY]: null,
-        [STAY_TYPES.LONG_TERM]: null
-      },
+      // 초기 상태를 기본값으로 설정
+      settings: DEFAULT_SETTINGS,
       isLoading: false,
       error: null,
       lastFetched: null,
 
-      // 시간을 HH:mm:ss 형식에서 HH:mm 형식으로 변환하는 함수
-      formatTimeToHHmm: (time) => {
-        return time ? time.slice(0, 5) : '';  // 'HH:mm:ss' -> 'HH:mm'
-      },
-
-      toggleDay: (currentDays, dayIndex) => {
-        const dayArray = currentDays.split('');
-        dayArray[dayIndex] = dayArray[dayIndex] === '1' ? '0' : '1';
-        return dayArray.join('');
-      },
-
       fetchSettings: async (forceFetch = false) => {
         const now = Date.now();
         const lastFetched = get().lastFetched;
-        const currentSettings = get().settings;
-
-        // 캐시된 데이터가 있고 강제 새로고침이 아닌 경우
+        
         if (!forceFetch && lastFetched && (now - lastFetched < CACHE_DURATION)) {
-          return currentSettings;
+          return get().settings;
         }
 
         set({ isLoading: true, error: null });
         try {
           const response = await axios.get('/api/mypage/reservation-settings');
-          console.log('Fetched settings:', response.data); // 디버깅
-
-          const mappedSettings = {
-            [STAY_TYPES.HOURLY]: null,
-            [STAY_TYPES.NIGHTLY]: null,
-            [STAY_TYPES.LONG_TERM]: null
-          };
+          
+          // 기존 기본값에 서버 데이터 병합
+          const mappedSettings = { ...DEFAULT_SETTINGS };
 
           response.data.forEach(setting => {
-            const type = setting.stay_type;
-            if (Object.values(STAY_TYPES).includes(type)) {
-              mappedSettings[type] = {
-                stay_type: type,
-                // 서버 데이터 또는 기존 설정값 사용
-                available_days: setting.available_days || 
-                              (currentSettings[type]?.available_days) || 
-                              DEFAULT_AVAILABLE_DAYS,
-                check_in_time: get().formatTimeToHHmm(setting.check_in_time),
-                check_out_time: get().formatTimeToHHmm(setting.check_out_time),
-                weekday_rate: setting.weekday_rate || DEFAULT_RATES.WEEKDAY,
-                friday_rate: setting.friday_rate || DEFAULT_RATES.FRIDAY,
-                weekend_rate: setting.weekend_rate || DEFAULT_RATES.WEEKEND
-              };
-            }
+            mappedSettings[setting.stay_type] = {
+              ...DEFAULT_SETTINGS[setting.stay_type],
+              ...setting,
+              check_in_time: setting.check_in_time,
+              check_out_time: setting.check_out_time,
+              available_days: setting.available_days.padStart(7, '0')
+            };
           });
 
-          console.log('Mapped settings:', mappedSettings); // 디버깅
+          console.log('설정 로드 결과:', mappedSettings); // 디버깅용
 
           set({ 
             settings: mappedSettings, 
@@ -81,61 +79,50 @@ const useReservationSettingsStore = create(
 
           return mappedSettings;
         } catch (error) {
-          console.error('Settings fetch error:', error); // 디버깅
+          console.error('설정 로드 실패:', error);
           set({ 
-            error: {
-              message: '설정을 불러오는데 실패했습니다.',
-              action: '페이지를 새로고침하거나 잠시 후 다시 시도해주세요.',
-              retryFn: () => get().fetchSettings(true)
-            }, 
+            error: error.response?.data?.error || '설정을 불러오는데 실패했습니다.', 
             isLoading: false 
           });
-          return null;
+          throw error;
         }
       },
 
       updateSettings: async (type, newSettings) => {
         set({ isLoading: true, error: null });
         try {
-          console.log('Updating settings:', { type, newSettings }); // 디버깅
-
-          const response = await axios.put('/api/mypage/reservation-settings', {
+          const requestData = {
             stay_type: type,
-            ...newSettings
-          });
+            available_days: newSettings.available_days,
+            check_in_time: newSettings.check_in_time,
+            check_out_time: newSettings.check_out_time,
+            weekday_rate: parseInt(newSettings.weekday_rate),
+            friday_rate: parseInt(newSettings.friday_rate),
+            weekend_rate: parseInt(newSettings.weekend_rate)
+          };
 
-          if (response.data) {
-            // 현재 상태 가져오기
-            const currentSettings = get().settings;
-            
-            // 새로운 설정으로 상태 업데이트
-            const updatedSettings = {
-              ...currentSettings,
+          const response = await axios.put('/api/mypage/reservation-settings', requestData);
+          
+          set(state => ({
+            settings: {
+              ...state.settings,
               [type]: {
-                ...currentSettings[type],
-                ...response.data
+                ...DEFAULT_SETTINGS[type], // 기본값 유지
+                ...response.data, // 서버 응답으로 덮어쓰기
+                available_days: response.data.available_days.padStart(7, '0'),
+                check_in_time: response.data.check_in_time.slice(0, 5),
+                check_out_time: response.data.check_out_time.slice(0, 5)
               }
-            };
-
-            console.log('Updated settings:', updatedSettings); // 디버깅
-
-            set({ 
-              settings: updatedSettings,
-              isLoading: false,
-              lastFetched: Date.now()
-            });
-
-            return response.data;
-          }
-        } catch (error) {
-          console.error('Settings update error:', error); // 디버깅
-          set({
-            error: {
-              message: '설정 업데이트에 실패했습니다.',
-              action: '입력값을 확인하고 다시 시도해주세요.',
-              retryFn: () => get().updateSettings(type, newSettings)
             },
             isLoading: false
+          }));
+
+          return response.data;
+        } catch (error) {
+          console.error('설정 업데이트 실패:', error);
+          set({ 
+            error: error.response?.data?.error || '설정 업데이트에 실패했습니다.', 
+            isLoading: false 
           });
           throw error;
         }
@@ -152,6 +139,5 @@ const useReservationSettingsStore = create(
     }
   )
 );
-
 
 export default useReservationSettingsStore;

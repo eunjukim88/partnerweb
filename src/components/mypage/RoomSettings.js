@@ -13,7 +13,6 @@ const RoomSettings = () => {
   useEffect(() => {
     const loadRooms = async () => {
       await fetchRooms();
-      console.log('Loaded rooms:', rooms);
     };
     loadRooms();
   }, [fetchRooms]);
@@ -22,7 +21,18 @@ const RoomSettings = () => {
   if (error) return <div>{error}</div>;
 
   const itemsPerPage = 10;
-  const totalPages = Math.ceil(rooms.length / itemsPerPage);
+
+  const filteredRooms = rooms.filter((room) => {
+    if (!room || !room.room_number) return false;
+    return room.room_number.toString().includes(searchTerm);
+  });
+
+  const totalPages = Math.ceil(filteredRooms.length / itemsPerPage);
+
+  const paginatedRooms = filteredRooms.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleEdit = (room) => {
     console.log('Editing room (before):', room);
@@ -51,24 +61,25 @@ const RoomSettings = () => {
         throw new Error('객실 ID가 누락되었습니다.');
       }
 
-      const requiredFields = ['floor', 'building', 'name'];
-      const missingFields = requiredFields.filter(field => !roomData[field] && roomData[field] !== null);
-      
-      if (missingFields.length > 0) {
-        throw new Error(`다음 필드가 누락되었습니다: ${missingFields.join(', ')}`);
-      }
-
       const roomDataToUpdate = {
         roomData: {
-          floor: roomData.floor || null,
-          building: roomData.building || null,
-          name: roomData.name || null,
-          show_floor: Boolean(roomData.show_floor),
-          show_building: Boolean(roomData.show_building),
-          show_name: Boolean(roomData.show_name),
-          show_type: Boolean(roomData.show_type),
+          room_floor: roomData.room_floor,
+          room_building: roomData.room_building,
+          room_name: roomData.room_name,
+          room_type: roomData.room_type,
+          show_floor: roomData.show_floor,
+          show_building: roomData.show_building,
+          show_name: roomData.show_name,
+          show_type: roomData.show_type
         },
-        ratesData: roomData.rates || {}
+        ratesData: {
+          rate_hourly_weekday: roomData.rate_hourly_weekday,
+          rate_hourly_friday: roomData.rate_hourly_friday,
+          rate_hourly_weekend: roomData.rate_hourly_weekend,
+          rate_nightly_weekday: roomData.rate_nightly_weekday,
+          rate_nightly_friday: roomData.rate_nightly_friday,
+          rate_nightly_weekend: roomData.rate_nightly_weekend
+        }
       };
 
       await updateRoomStore(room_id, roomDataToUpdate);
@@ -78,16 +89,6 @@ const RoomSettings = () => {
       alert(error.message || '객실 정보 업데이트에 실패했습니다.');
     }
   };
-
-  const filteredRooms = rooms.filter((room) => {
-    if (!room || !room.room_number) return false;
-    return room.room_number.toString().includes(searchTerm);
-  });
-
-  const paginatedRooms = filteredRooms.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
 
   return (
     <Container>

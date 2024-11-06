@@ -75,9 +75,9 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
     
     const days = settings.available_days.split('');
     return {
-      weekday: days.slice(0, 4).includes('1'),  // 월~목 중 하나라도 선택
-      friday: days[4] === '1',                  // 금요일 선택
-      weekend: days.slice(5, 7).includes('1')   // 토,일 중 하나라도 선택
+      weekday: days.slice(1, 5).includes('1'),  // 월~목 중 하나라도 선택
+      friday: days[5] === '1',                  // 금요일 선택
+      weekend: days[6] === '1' || days[0] === '1'   // 토,일 중 하나라도 선택
     };
   };
 
@@ -88,7 +88,7 @@ const SettingForm = ({ type, settings, onSettingsChange, onSave, isEditing, onEd
       <Section>
         <SectionTitle>예약 가능 요일</SectionTitle>
         <DayContainer>
-          {['월', '화', '수', '목', '금', '토', '일'].map((day, index) => (
+          {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
             <DayButton
               key={day}
               type="button"
@@ -192,11 +192,20 @@ const ReservationSettings = () => {
   const [activeTab, setActiveTab] = useState('대실');
   const [editingType, setEditingType] = useState(null);
   const [localSettings, setLocalSettings] = useState({});
+  const [initialized, setInitialized] = useState(false);
   
-  const { settings, isLoading, error, fetchSettings, updateSettings } = useReservationSettingsStore();
+  const { settings, isLoading, error, fetchSettings, updateSettings, clearError } = useReservationSettingsStore();
 
   useEffect(() => {
-    fetchSettings();
+    const loadSettings = async () => {
+      try {
+        await fetchSettings();
+        setInitialized(true);
+      } catch (error) {
+        console.error('설정 로드 실패:', error);
+      }
+    };
+    loadSettings();
   }, []);
 
   useEffect(() => {
@@ -205,81 +214,76 @@ const ReservationSettings = () => {
     }
   }, [settings]);
 
-  // 현재 탭의 stay_type 반환
-  const getCurrentType = () => {
-    switch(activeTab) {
-      case '대실': return 'hourly';
-      case '숙박': return 'nightly';
-      case '장기': return 'long_term';
-      default: return 'hourly';
-    }
-  };
-
-  // 탭 변경 핸들러 추가
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    // 수정 중이었다면 수정 모드 해제
-    if (editingType) {
-      setEditingType(null);
-    }
-  };
-
-  // 로컬 상태만 변경하는 핸들러
   const handleSettingsChange = (newSettings) => {
-    const currentType = getCurrentType();
     setLocalSettings(prev => ({
       ...prev,
-      [currentType]: {
-        ...prev[currentType],
-        ...newSettings,
-        stay_type: currentType // stay_type 보존
+      [activeTab]: {
+        ...prev[activeTab],
+        ...newSettings
       }
     }));
   };
 
-  // 저장 버튼 클릭 시에만 API 호출
   const handleSave = async () => {
     try {
-      const type = getCurrentType();
-      await updateSettings(type, localSettings[type]);
+      const currentSettings = localSettings[activeTab];
+      await updateSettings(activeTab, currentSettings);
       setEditingType(null);
-      // 저장 후 데이터 새로고침
-      await fetchSettings();
+      await fetchSettings(true); // 강제로 새로고침
     } catch (error) {
       console.error('설정 저장 실패:', error);
     }
   };
 
+  // 로딩 상태 처리
+  if (!initialized || isLoading) {
+    return (
+      <Container>
+        <LoadingWrapper>데이터를 불러오는 중...</LoadingWrapper>
+      </Container>
+    );
+  }
+
   if (error) {
-    return <div>에러: {error.message}</div>;
+    return (
+      <ErrorContainer>
+        <ErrorMessage>{error}</ErrorMessage>
+        <RetryButton onClick={() => {
+          clearError();
+          fetchSettings(true);
+        }}>
+          다시 시도
+        </RetryButton>
+      </ErrorContainer>
+    );
   }
 
   return (
     <Container>
-      <Section>
-        <SectionTitle>예약 설정</SectionTitle>
-        <TabContainer>
-          {['대실', '숙박', '장기'].map(tab => (
-            <TabButton
-              key={tab}
-              active={activeTab === tab}
-              onClick={() => handleTabChange(tab)}
-            >
-              {tab}
-            </TabButton>
-          ))}
-        </TabContainer>
-        
-        <SettingForm
-          type={getCurrentType()}
-          settings={localSettings[getCurrentType()]}
-          onSettingsChange={handleSettingsChange}
-          onSave={handleSave}
-          isEditing={editingType === activeTab}
-          onEdit={() => setEditingType(activeTab)}
-          isLoading={isLoading}
-        />
-      </Section>
+      <TabContainer>
+        {['대실', '숙박', '장기'].map(tab => (
+          <TabButton
+            key={tab}
+            active={activeTab === tab}
+            onClick={() => {
+              setActiveTab(tab);
+              setEditingType(null);
+            }}
+          >
+            {tab}
+          </TabButton>
+        ))}
+      </TabContainer>
+
+      <SettingForm
+        type={activeTab}
+        settings={localSettings[activeTab]}
+        onSettingsChange={handleSettingsChange}
+        onSave={handleSave}
+        isEditing={editingType === activeTab}
+        onEdit={() => setEditingType(activeTab)}
+        isLoading={isLoading}
+      />
     </Container>
   );
 };
@@ -288,8 +292,9 @@ export default ReservationSettings;
 
 const Container = styled.div`
   padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 `;
 
 const TabContainer = styled.div`
@@ -299,24 +304,22 @@ const TabContainer = styled.div`
 
 const TabButton = styled.button`
   padding: 10px 20px;
-  margin-bottom: 20px;
+  margin-right: 10px;
   border: none;
   background-color: ${props => props.active ? '#ffffff' : '#f5f5f5'};
   color: ${props => props.active ? '#3395FF' : '#808080'};
-  font-weight: ${props => props.active ? '7800' : '400'};
-  border-radius: 30px 30px 0px 0px;
-  border-top: ${props => props.active ? '2px solid #3395FF' : 'none'};
-  border-left: ${props => props.active ? '2px solid #3395FF' : 'none'};
-  border-right: ${props => props.active ? '2px solid #3395FF' : 'none'};
-  display: flex
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  width: 150px;
-  height: 40px;
   font-weight: ${props => props.active ? '700' : '400'};
-  font-size: 18px;
-  transition: all 0.3s ease;
+  border-radius: 8px 8px 0 0;
+  border-bottom: ${props => props.active ? '2px solid #3395FF' : 'none'};
+  cursor: pointer;
+  width: 120px;
+  height: 40px;
+  font-size: 16px;
+  transition: all 0.2s ease;
+
+  &:last-child {
+    margin-right: 0;
+  }
 `;
 
 const Section = styled.div`
@@ -411,9 +414,10 @@ const PriceUnit = styled.span`
 `;
 
 const SettingsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  padding: 20px;
+  background-color: #ffffff;
+  border-radius: 0 8px 8px 8px;
+  border: 1px solid #e0e0e0;
 `;
 
 const ButtonContainer = styled.div`
@@ -440,7 +444,7 @@ const SaveButton = styled(Button)`
 
 const EditButton = styled(Button)`
   padding: 10px 30px;
-  background-color: ${theme.colors.secondary};ㅜ
+  background-color: ${theme.colors.secondary};
   color: white;
   border: none;
   border-radius: 4px;
@@ -644,5 +648,39 @@ const DropdownItem = styled.div`
 const TimeIcon = styled(FaClock)`
   color: ${props => props.disabled ? '#6E7881' : theme.colors.primary};
   font-size: 16px;
+`;
+
+const ErrorContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`;
+
+const ErrorMessage = styled.div`
+  color: #ff4444;
+  margin-bottom: 15px;
+`;
+
+const RetryButton = styled(Button)`
+  background-color: #3395FF;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  
+  &:hover {
+    background-color: #2678d9;
+  }
+`;
+
+const LoadingWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: #666;
 `;
 

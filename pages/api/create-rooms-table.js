@@ -24,13 +24,13 @@ export default async function handler(req, res) {
     await sql`
       CREATE TABLE IF NOT EXISTS rooms (
         room_id SERIAL PRIMARY KEY,
-        room_number VARCHAR(10) UNIQUE NOT NULL,
+        room_number VARCHAR(10) NOT NULL,
         room_floor TEXT,
         room_building VARCHAR(50) NULL,
         room_name VARCHAR(100) NULL,
         room_type TEXT,
-        reservation_status VARCHAR(50) NOT NULL DEFAULT 'vacant',
-        room_status room_status_enum,
+        stay_type VARCHAR(10) CHECK (stay_type IN ('대실', '숙박', '장기', NULL)),
+        room_status VARCHAR(50),
         show_floor BOOLEAN DEFAULT false,
         show_building BOOLEAN DEFAULT false,
         show_name BOOLEAN DEFAULT false,
@@ -73,19 +73,19 @@ export default async function handler(req, res) {
      * 예약 설정 테이블 (reservation_settings)
      * 
      * 용도:
-     * - 숙박 타입별(hourly/nightly/long_term) 기본 설정
+     * - 숙박 타입별(대실/숙박/장기) 기본 설정
      * - 예약 가능 요일 설정 (비트마스크)
      * - 요일별 기본 요금 설정
      * - 체크인/아웃 시간 설정
      * 
      * 특징:
-     * - stay_type이 PK (3개 고정값: hourly/nightly/long_term)
+     * - stay_type이 PK (3개 고정값: 대실/숙박/장기)
      * - 생성/삭제 없이 수정만 가능
      * - available_days: 예약 가능 요일 설정
      */
     await sql`
       CREATE TABLE IF NOT EXISTS reservation_settings (
-        stay_type VARCHAR(10) PRIMARY KEY CHECK (stay_type IN ('hourly', 'nightly', 'long_term')),
+        stay_type VARCHAR(10) PRIMARY KEY CHECK (stay_type IN ('대실', '숙박', '장기')),
         available_days BIT(7) DEFAULT B'1111111',
         check_in_time TIME NOT NULL DEFAULT '15:00',
         check_out_time TIME NOT NULL DEFAULT '11:00',
@@ -115,17 +115,17 @@ export default async function handler(req, res) {
     await sql`
       CREATE TABLE IF NOT EXISTS reservations (
         reservation_id SERIAL PRIMARY KEY,
-        reservation_number VARCHAR(50) NOT NULL UNIQUE,
+        reservation_number VARCHAR(50) NOT NULL,
         room_id INTEGER NOT NULL REFERENCES rooms(room_id),
         check_in_date DATE NOT NULL,
         check_out_date DATE NOT NULL,
         check_in_time TIME NOT NULL,
         check_out_time TIME NOT NULL,
-        stay_type VARCHAR(20) NOT NULL CHECK (stay_type IN ('hourly', 'nightly', 'long_term')),
+        stay_type VARCHAR(20) CHECK (stay_type IN ('대실', '숙박', '장기', NULL)),
         booking_source VARCHAR(20) NOT NULL CHECK (
           booking_source IN ('DIRECT', 'AIRBNB', 'YANOLJA', 'YEOGI', 'BOOKING', 'AGODA', 'OTHER')
         ),
-        stay_type_rate INTEGER NOT NULL,
+        rate_amount INTEGER NOT NULL,
         memo TEXT,
         phone VARCHAR(20) NOT NULL,
         guest_name VARCHAR(100),
@@ -148,7 +148,7 @@ export default async function handler(req, res) {
      */
     await sql`
       CREATE INDEX IF NOT EXISTS idx_rooms_number ON rooms(room_number);
-      CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(reservation_status, room_status);
+      
       CREATE INDEX IF NOT EXISTS idx_room_rates_room_id ON room_rates(room_id);
       CREATE INDEX IF NOT EXISTS idx_reservations_room_id ON reservations(room_id);
       CREATE INDEX IF NOT EXISTS idx_reservations_dates ON reservations(check_in_date, check_out_date);

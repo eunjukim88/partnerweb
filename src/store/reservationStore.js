@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
-import { STAY_TYPES, BOOKING_SOURCES, STAY_TYPE_MAP } from '../constants/reservation';
 import useReservationSettingsStore from './reservationSettingsStore';
 import useRoomStore from './roomStore';
 
@@ -12,62 +11,132 @@ const useReservationStore = create(
       isLoading: false,
       error: null,
 
-      // 예약번호 생성 함수
-      generateReservationNumber: () => {
-        const date = new Date();
-        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        return `R${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}${random}`;
-      },
 
       // 요금 계산 함수
-      calculateRate: (checkInDate, stayType) => {
-        const settings = useReservationSettingsStore.getState().settings[stayType];
-        if (!settings) return 0;
+      calculateRate: (checkInDate, stayType, roomId) => {
+        try {
+          const room = useRoomStore.getState().rooms.find(r => r.room_id === roomId);
+          const settings = useReservationSettingsStore.getState().settings;
+          
+          if (!room) {
+            throw new Error('객실을 찾을 수 없습니다.');
+          }
 
-        const checkInDay = new Date(checkInDate).getDay();
-        const availableDays = settings.available_days.split('');
-        
-        // 예약 불가능한 요일인 경우
-        if (availableDays[checkInDay] === '0') {
-          throw new Error('선택하신 날짜는 예약이 불가능합니다.');
+          const checkInDay = new Date(checkInDate).getDay();
+          let rate_amount = 0;
+          
+          // 1. 먼저 객실별 요금 확인
+          if (stayType === '대실') {
+            if (checkInDay === 5) rate_amount = room.rate_hourly_friday;
+            else if (checkInDay === 6 || checkInDay === 0) rate_amount = room.rate_hourly_weekend;
+            else rate_amount = room.rate_hourly_weekday;
+          } else {
+            if (checkInDay === 5) rate_amount = room.rate_nightly_friday;
+            else if (checkInDay === 6 || checkInDay === 0) rate_amount = room.rate_nightly_weekend;
+            else rate_amount = room.rate_nightly_weekday;
+          }
+
+          // 2. 객실별 요금이 없으면(0이면) 기본 설정 요금 사용
+          if (!rate_amount) {
+            const stayTypeSettings = settings[stayType];
+            if (!stayTypeSettings) {
+              throw new Error('예약 설정을 찾을 수 없습니다.');
+            }
+
+            if (checkInDay === 5) rate_amount = stayTypeSettings.friday_rate;
+            else if (checkInDay === 6 || checkInDay === 0) rate_amount = stayTypeSettings.weekend_rate;
+            else rate_amount = stayTypeSettings.weekday_rate;
+          }
+
+          console.log('요금 계산 결과:', {
+            객실ID: roomId,
+            숙박유형: stayType,
+            체크인날짜: checkInDate,
+            요일: checkInDay,
+            객실요금존재: !!rate_amount,
+            최종요금: rate_amount
+          });
+
+          return rate_amount;
+        } catch (error) {
+          console.error('요금 계산 실패:', error);
+          throw error;
         }
-        
-        // 요일별 요금 계산
-        if (checkInDay === 5) {
-          return settings.friday_rate;
-        } else if (checkInDay === 6 || checkInDay === 0) {
-          return settings.weekend_rate;
-        }
-        return settings.weekday_rate;
       },
 
       // 예약 가능 여부 확인
       validateReservation: async (data) => {
-        const roomStore = useRoomStore.getState();
-        const settingsStore = useReservationSettingsStore.getState();
+        try {
+          const roomStore = useRoomStore.getState();
+          const settingsStore = useReservationSettingsStore.getState();
+          
+          console.log('검증 데이터:', {
+            rooms: roomStore.rooms,
+            settings: settingsStore.settings,
+            reservationData: data
+          });
 
-        // 1. 객실 판매 가능 여부 확인
-        const room = roomStore.rooms.find(r => r.id === data.room_id);
-        if (!room[data.stay_type]) {
-          throw new Error('선택하신 객실은 해당 숙박 유형으로 예약이 불가능합니다.');
+          // 1. 객실 존재 여부 확인
+          const room = roomStore.rooms.find(r => r.room_id === data.room_id);
+          if (!room) {
+            throw new Error('객실을 찾을 수 없습니다.');
+          }
+
+          // 2. 예약 설정 확인
+          const stayTypeSettings = settingsStore.settings[data.stay_type];
+          if (!stayTypeSettings) {
+            throw new Error('예약 설정을 찾을 수 없습니다.');
+          }
+
+          // 3. 날짜 가능 여부 확인
+          const dayIndex = new Date(data.check_in_date).getDay();
+          const availableDays = stayTypeSettings.available_days.split('');
+          
+          console.log('날짜 검증:', {
+            dayIndex,
+            availableDays,
+            isAvailable: availableDays[dayIndex] === '1'
+          });
+
+          if (availableDays[dayIndex] === '0') {
+            throw new Error('선택하신 날짜는 예약이 불가능합니다.');
+          }
+
+          // 4. ��실 예약 중복 확인
+          const reservations = get().reservations;
+          const hasOverlap = reservations.some(r => 
+            r.room_id === data.room_id &&
+            !(new Date(r.check_out_date) <= new Date(data.check_in_date) || 
+              new Date(r.check_in_date) >= new Date(data.check_out_date))
+          );
+
+          console.log('중복 예약 검증:', {
+            existingReservations: reservations,
+            hasOverlap
+          });
+
+          if (hasOverlap) {
+            throw new Error('해당 기간에 이미 예약이 존재합니다.');
+          }
+
+          return true;
+        } catch (error) {
+          console.error('예약 검증 실패:', error);
+          throw error;
         }
+      },
 
-        // 2. 날짜 가능 여부 확인
-        const dayIndex = new Date(data.check_in_date).getDay();
-        const availableDays = settingsStore.settings[data.stay_type].available_days.split('');
-        if (availableDays[dayIndex] === '0') {
-          throw new Error('선택하신 날짜는 예약이 불가능합니다.');
-        }
-
-        // 3. 객실 예약 중복 확인
-        const hasOverlap = get().reservations.some(r => 
-          r.room_id === data.room_id &&
-          !(new Date(r.check_out_date) <= new Date(data.check_in_date) || 
-            new Date(r.check_in_date) >= new Date(data.check_out_date))
+      // 예약번호 중복 체크 함수 추가
+      validateReservationNumber: (data) => {
+        const reservations = get().reservations;
+        const isDuplicate = reservations.some(r => 
+          r.reservation_number === data.reservation_number &&
+          r.check_in_date === data.check_in_date &&
+          r.guest_name === data.guest_name
         );
 
-        if (hasOverlap) {
-          throw new Error('해당 기간에 이미 예약이 존재합니다.');
+        if (isDuplicate) {
+          throw new Error('동일한 날짜에 같은 예약자의 동일 예약번호가 이미 존재합니다.');
         }
 
         return true;
@@ -77,20 +146,33 @@ const useReservationStore = create(
       createReservation: async (data) => {
         set({ isLoading: true });
         try {
-          // stay_type이 DB 형식과 일치하는지 확인
-          if (!['hourly', 'nightly', 'long_term'].includes(data.stay_type)) {
-            throw new Error('잘못된 숙박 유형입니다.');
+          // 예약번호 중복 체크 추가
+          get().validateReservationNumber(data);
+          await get().validateReservation(data);
+          
+          // 숙박 유형별 설정 가져오기
+          const settings = useReservationSettingsStore.getState().settings;
+          const stayTypeSettings = settings[data.stay_type];
+          
+          // rate_amount를 숫자로 변환
+          let finalRate;
+          if (data.custom_rate) {
+            finalRate = parseInt(data.rate_amount) || 0;
+          } else {
+            finalRate = get().calculateRate(data.check_in_date, data.stay_type, data.room_id);
           }
 
-          await get().validateReservation(data);
-          const response = await axios.post('/api/reservations', data);
-          
-          // 객실 상태 업데이트
-          await useRoomStore.getState().updateRoomStatus(
-            data.room_id,
-            data.stay_type
-          );
+          const requestData = {
+            ...data,
+            check_in_time: stayTypeSettings.check_in_time,
+            check_out_time: stayTypeSettings.check_out_time,
+            rate_amount: finalRate
+          };
 
+          console.log('예약 요청 데이터:', requestData);
+
+          const response = await axios.post('/api/reservations/reservations', requestData);
+          
           set(state => ({
             reservations: [...state.reservations, response.data],
             isLoading: false
@@ -98,7 +180,8 @@ const useReservationStore = create(
 
           return response.data;
         } catch (error) {
-          set({ isLoading: false, error: error.message });
+          console.error('예약 생성 실패:', error);
+          set({ isLoading: false, error: error.response?.data?.error || error.message });
           throw error;
         }
       },
@@ -107,7 +190,7 @@ const useReservationStore = create(
       fetchReservations: async () => {
         set({ isLoading: true, error: null });
         try {
-          const response = await axios.get('/api/reservations');
+          const response = await axios.get('/api/reservations/reservations');
           set({ reservations: response.data, isLoading: false });
         } catch (error) {
           set({ 
@@ -121,46 +204,86 @@ const useReservationStore = create(
       getAvailableRooms: async (checkInDate, checkOutDate, stayType) => {
         try {
           const rooms = useRoomStore.getState().rooms;
+          const settings = useReservationSettingsStore.getState().settings;
           const reservations = get().reservations;
-          
-          // 프론트엔드 타입을 백엔드 타입으로 변환
-          const backendStayType = STAY_TYPE_MAP[stayType];
-          
-          if (!backendStayType) {
-            console.error('Invalid stay type:', stayType);
-            return [];
-          }
 
-          console.log('조회 파라미터:', {
-            frontendType: stayType,
-            backendType: backendStayType,
+          console.log('객실 조회 시작:', {
+            totalRooms: rooms.length,
+            settings,
+            stayType,
             checkInDate,
-            checkOutDate,
-            totalRooms: rooms.length
+            checkOutDate
           });
 
-          // 1. 숙박 타입에 따른 필터링
-          let availableRooms = rooms.filter(room => {
-            return room[backendStayType] === true;  // true일 때 예약 가능
-          });
-
-          // 2. 날짜 중복 체크
-          if (checkInDate && checkOutDate) {
-            availableRooms = availableRooms.filter(room => {
-              const hasOverlap = reservations.some(r => 
-                r.room_id === room.room_id &&
-                new Date(r.check_out_date) > new Date(checkInDate) &&
-                new Date(r.check_in_date) < new Date(checkOutDate)
-              );
-              return !hasOverlap;
-            });
+          // 1. 예약 설정 확인
+          const stayTypeSettings = settings[stayType];
+          if (!stayTypeSettings) {
+            throw new Error('예약 설정을 찾을 수 없습니다.');
           }
 
-          console.log('조회된 객실:', availableRooms);
+          // 2. 요일 체크
+          const dayIndex = new Date(checkInDate).getDay();
+          const availableDays = stayTypeSettings.available_days.split('');
+          
+          if (availableDays[dayIndex] === '0') {
+            throw new Error('선택하신 날짜는 예약이 불가능합니다.');
+          }
+
+          // 3. 사용 가능한 객실 필터링
+          let availableRooms = rooms.filter(room => {
+            const hasOverlap = reservations.some(r => 
+              r.room_id === room.room_id &&
+              new Date(r.check_out_date) > new Date(checkInDate) &&
+              new Date(r.check_in_date) < new Date(checkOutDate)
+            );
+            return !hasOverlap;
+          });
+
+          console.log('조회된 객실:', {
+            availableRooms,
+            count: availableRooms.length
+          });
+
           return availableRooms;
         } catch (error) {
           console.error('사용 가능한 객실 조회 실패:', error);
-          throw new Error('사용 가능한 객실을 조회하는데 실패했습니다.');
+          throw error;
+        }
+      },
+
+      // 예약 업데이트
+      updateReservation: async (reservation_id, data) => {
+        set({ isLoading: true });
+        try {
+          const response = await axios.put('/api/reservations/reservations', {
+            reservation_id,
+            ...data
+          });
+          set(state => ({
+            reservations: state.reservations.map(r => 
+              r.reservation_id === reservation_id ? response.data : r
+            ),
+            isLoading: false
+          }));
+          return response.data;
+        } catch (error) {
+          set({ error: error.message, isLoading: false });
+          throw error;
+        }
+      },
+
+      // 예약 삭제
+      deleteReservation: async (reservation_id) => {
+        set({ isLoading: true });
+        try {
+          await axios.delete(`/api/reservations/reservations?reservation_id=${reservation_id}`);
+          set(state => ({
+            reservations: state.reservations.filter(r => r.reservation_id !== reservation_id),
+            isLoading: false
+          }));
+        } catch (error) {
+          set({ error: error.message, isLoading: false });
+          throw error;
         }
       },
 

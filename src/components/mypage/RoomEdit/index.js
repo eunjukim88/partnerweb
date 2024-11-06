@@ -154,42 +154,35 @@ const RoomEdit = () => {
 
   const handleSave = async () => {
     try {
-      console.log('=== 저장 시작 ===');
-      console.log('Room ID:', roomId);
-      console.log('Room State:', room);
-
       if (!roomId) {
         throw new Error('객실 ID가 누락되었습니다.');
       }
 
       const roomData = {
-        room_id: parseInt(roomId),
-        room_floor: room.room_floor || null,
+        room_floor: room.room_floor,
         room_building: room.room_building,
         room_name: room.room_name,
         room_type: room.room_type,
         show_floor: room.display.floor,
         show_building: room.display.building,
         show_name: room.display.name,
-        show_type: room.display.type,
-        hourly: room.salesLimit.hourly,
-        nightly: room.salesLimit.nightly,
-        long_term: room.salesLimit.long_term
+        show_type: room.display.type
       };
 
-      const result = await updateRoom(parseInt(roomId), { roomData, ratesData: room.rates });
-      
-      console.log('=== 저장 결과 ===');
-      console.log('Result:', result);
+      const ratesData = {
+        rate_hourly_weekday: room.rates.rate_hourly_weekday,
+        rate_hourly_friday: room.rates.rate_hourly_friday,
+        rate_hourly_weekend: room.rates.rate_hourly_weekend,
+        rate_nightly_weekday: room.rates.rate_nightly_weekday,
+        rate_nightly_friday: room.rates.rate_nightly_friday,
+        rate_nightly_weekend: room.rates.rate_nightly_weekend
+      };
 
+      await updateRoom(parseInt(roomId), { roomData, ratesData });
       alert('저장이 완료되었습니다.');
       router.push('/mypage?section=roomSettings');
     } catch (error) {
-      console.error('=== 저장 실패 ===');
-      console.error('Error:', error);
-      console.error('Error response:', error.response);
-      console.error('Error message:', error.message);
-      
+      console.error('저장 실패:', error);
       alert(error.message || '저장에 실패했습니다.');
     }
   };

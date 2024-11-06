@@ -49,24 +49,20 @@ async function handleGetRooms(req, res) {
  * rooms 테이블과 room_rates 테이블 동시 수정
  */
 async function handleUpdateRoom(req, res) {
+  const { room_id, rates, ...roomData } = req.body;
+  
   try {
-    const { room_id, rates, ...roomData } = req.body;
-    console.log('Received data:', { room_id, rates, roomData });
-
-    if (!room_id) {
-      return res.status(400).json({ error: 'room_id가 필요합니다.' });
-    }
-
     await sql`BEGIN`;
-
+    
     // 1. rooms 테이블 업데이트
-    const roomResult = await sql`
+    await sql`
       UPDATE rooms
       SET
         room_floor = ${roomData.room_floor},
         room_building = ${roomData.room_building},
         room_name = ${roomData.room_name},
         room_type = ${roomData.room_type},
+        stay_type = ${roomData.stay_type},
         show_floor = ${roomData.show_floor},
         show_building = ${roomData.show_building},
         show_name = ${roomData.show_name},
@@ -74,6 +70,7 @@ async function handleUpdateRoom(req, res) {
         hourly = ${roomData.hourly},
         nightly = ${roomData.nightly},
         long_term = ${roomData.long_term},
+        memo = ${roomData.memo},
         updated_at = CURRENT_TIMESTAMP
       WHERE room_id = ${room_id}
       RETURNING *

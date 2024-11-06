@@ -64,11 +64,13 @@ async function handleGetReservations(req, res) {
  * - check_out_time: 체크아웃 시간 HH:MM (필수)
  * - stay_type: 숙박 유형 (hourly/nightly/long_term) (필수)
  * - booking_source: 예약 경로
- * - price: 요금
+ * - rate_amount: 요금
  * - memo: 메모
  */
 async function handleCreateReservation(req, res) {
   try {
+    console.log('받은 예약 데이터:', req.body);
+
     const {
       reservation_number,
       room_id,
@@ -78,7 +80,7 @@ async function handleCreateReservation(req, res) {
       check_out_time,
       stay_type,
       booking_source,
-      stay_type_rate,
+      rate_amount,
       memo,
       phone,
       guest_name
@@ -87,14 +89,35 @@ async function handleCreateReservation(req, res) {
     // 필수 필드 검증
     const requiredFields = ['reservation_number', 'room_id', 'check_in_date', 
       'check_out_date', 'check_in_time', 'check_out_time', 'stay_type', 
-      'booking_source', 'stay_type_rate', 'phone'];
+      'booking_source', 'rate_amount', 'phone', 'guest_name'];
     
-    const missingFields = requiredFields.filter(field => !req.body[field]);
+    const missingFields = requiredFields.filter(field => {
+      const value = req.body[field];
+      return value === undefined || value === null || value === '';
+    });
+
     if (missingFields.length > 0) {
+      console.error('필수 필드 누락:', missingFields);
       return res.status(400).json({ 
-        error: `Missing required fields: ${missingFields.join(', ')}` 
+        error: `필수 필드 누락: ${missingFields.join(', ')}` 
       });
     }
+
+    // SQL 쿼리 실행 전 데이터 로깅
+    console.log('DB 저장 데이터:', {
+      reservation_number,
+      room_id,
+      check_in_date,
+      check_out_date,
+      check_in_time,
+      check_out_time,
+      stay_type,
+      booking_source,
+      rate_amount,
+      memo,
+      phone,
+      guest_name
+    });
 
     const { rows } = await sql`
       INSERT INTO reservations (
@@ -106,7 +129,7 @@ async function handleCreateReservation(req, res) {
         check_out_time,
         stay_type,
         booking_source,
-        stay_type_rate,
+        rate_amount,
         memo,
         phone,
         guest_name
@@ -119,18 +142,22 @@ async function handleCreateReservation(req, res) {
         ${check_out_time}::time,
         ${stay_type},
         ${booking_source},
-        ${stay_type_rate},
-        ${memo},
+        ${rate_amount},
+        ${memo || ''},
         ${phone},
         ${guest_name}
       )
       RETURNING *
     `;
 
+    console.log('DB 저장 결과:', rows[0]);
     res.status(201).json(rows[0]);
   } catch (error) {
-    console.error('예약 생성 실패:', error);
-    res.status(500).json({ error: '예약 생성 실패' });
+    console.error('예약 생성 실패 상세:', error);
+    res.status(500).json({ 
+      error: '예약 생성 실패', 
+      details: error.message 
+    });
   }
 }
 

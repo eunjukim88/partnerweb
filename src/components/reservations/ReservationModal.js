@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Button, Select, Input } from '../common/FormComponents';
 import { FaTimes } from 'react-icons/fa';
-import { BOOKING_SOURCES, STAY_TYPE_MAP, REVERSE_STAY_TYPE_MAP } from '../../constants/reservation';
+import { BOOKING_SOURCES, STAY_TYPES, DAYS_OF_WEEK } from '../../constants/reservation';
 import useReservationStore from '../../store/reservationStore';
 import useReservationSettingsStore from '../../store/reservationSettingsStore';
 import useRoomStore from '../../store/roomStore';
@@ -23,11 +23,11 @@ const ReservationModal = ({ onClose, onSave }) => {
     check_in_time: '',
     check_out_time: '',
     room_id: null,
-    custom_rate: false,
-    stay_type_rate: 0,
+    rate_amount: '',
     memo: ''
   });
 
+  const reservationStore = useReservationStore();
   const { settings } = useReservationSettingsStore();
   const { rooms } = useRoomStore();
 
@@ -39,30 +39,35 @@ const ReservationModal = ({ onClose, onSave }) => {
     return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
   };
 
+  // 숙박 유형 변경 핸들러
+  const handleStayTypeChange = (value) => {
+    const settings = useReservationSettingsStore.getState().settings;
+    const stayTypeSettings = settings[value];
+    
+    setFormData(prev => ({
+      ...prev,
+      stay_type: value,
+      room_id: null,
+      rate_amount: null,
+      check_in_date: null,
+      check_out_date: null,
+      check_in_time: stayTypeSettings.check_in_time,  // 기본 시간 설정
+      check_out_time: stayTypeSettings.check_out_time  // 기본 시간 설정
+    }));
+  };
+
   // 입력값 변경 처리
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    if (name === 'phone') {
+    if (name === 'stay_type') {
+      handleStayTypeChange(value);
+    } else if (name === 'room_id') {
+      handleRoomSelect(e);
+    } else if (name === 'phone') {
       setFormData(prev => ({
         ...prev,
         [name]: formatPhoneNumber(value)
-      }));
-    } else if (name === 'stay_type') {
-      const backendStayType = STAY_TYPE_MAP[value];
-      console.log('선택된 숙박유형:', { 
-        frontend: value, 
-        backend: backendStayType 
-      });
-      
-      setFormData(prev => ({
-        ...prev,
-        stay_type: value,
-        stay_type_backend: backendStayType,
-        check_in_date: null,
-        check_out_date: null,
-        check_in_time: '',
-        check_out_time: ''
       }));
     } else {
       setFormData(prev => ({
@@ -73,71 +78,105 @@ const ReservationModal = ({ onClose, onSave }) => {
     setError(null);
   };
 
-  // 날짜 변경 처리
-  const handleDateChange = (name, value) => {
-    try {
-      if (value && formData.stay_type) {
-        const stayTypeSettings = settings[STAY_TYPE_MAP[formData.stay_type]];
-        const selectedDate = new Date(value);
-        const dayIndex = selectedDate.getDay();
-        const availableDays = stayTypeSettings?.available_days?.split('') || [];
-
-        if (availableDays[dayIndex] === '0') {
-          throw new Error('선택하신 날짜는 예약이 불가능합니다.');
-        }
-
-        setFormData(prev => ({
-          ...prev,
-          [name]: value,
-          check_in_time: stayTypeSettings?.check_in_time || '',
-          check_out_time: stayTypeSettings?.check_out_time || ''
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          [name]: value
-        }));
+  // fetchAvailableRooms 함수 추가
+  const fetchAvailableRooms = async () => {
+    if (formData.stay_type && formData.check_in_date && formData.check_out_date) {
+      try {
+        const rooms = await reservationStore.getAvailableRooms(
+          formData.check_in_date,
+          formData.check_out_date,
+          formData.stay_type
+        );
+        setAvailableRooms(rooms);
+      } catch (error) {
+        setError(error.message);
       }
-    } catch (error) {
-      setError(error.message);
     }
   };
 
-  // 사용 가능한 객실 조회
-  useEffect(() => {
-    const fetchAvailableRooms = async () => {
-      if (formData.stay_type && formData.check_in_date && formData.check_out_date) {
-        try {
-          console.log('객실 조회 시작:', {
-            stay_type: formData.stay_type,
-            stay_type_backend: formData.stay_type_backend,
-            check_in_date: formData.check_in_date,
-            check_out_date: formData.check_out_date
-          });
+  // 날짜 변경 핸들러 수정
+  const handleDateChange = (field, date) => {
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [field]: date
+      };
 
-          const filteredRooms = await useReservationStore.getState().getAvailableRooms(
-            formData.check_in_date,
-            formData.check_out_date,
-            formData.stay_type_backend
-          );
-
-          console.log('조회된 객실:', filteredRooms);
-          setAvailableRooms(filteredRooms);
-        } catch (error) {
-          console.error('객실 조회 실패:', error);
-          setError(error.message);
-        }
+      // 숙박 유형과 체크인/아웃 날짜가 모두 있을 때만 객실 조회
+      if (newData.stay_type && newData.check_in_date && newData.check_out_date) {
+        fetchAvailableRooms();
       }
-    };
 
-    fetchAvailableRooms();
-  }, [formData.stay_type, formData.check_in_date, formData.check_out_date]);
+      return newData;
+    });
+  };
+
+  // 객실 선택 핸들러
+  const handleRoomSelect = (e) => {
+    const selectedRoomId = parseInt(e.target.value);
+    
+    if (selectedRoomId && formData.check_in_date && formData.stay_type) {
+      try {
+        const calculatedRate = reservationStore.calculateRate(
+          formData.check_in_date,
+          formData.stay_type,
+          selectedRoomId
+        );
+
+        setFormData(prev => ({
+          ...prev,
+          room_id: selectedRoomId,
+          rate_amount: calculatedRate
+        }));
+      } catch (error) {
+        console.error('요금 계산 실패:', error);
+        setError(error.message);
+      }
+    }
+  };
+
+  // 커스텀 요금 체크박스 핸들러
+  const handleCustomRateChange = (e) => {
+    const isCustom = e.target.checked;
+    setFormData(prev => ({
+      ...prev,
+      custom_rate: isCustom,
+      rate_amount: isCustom ? null : 
+        reservationStore.calculateRate(
+          prev.check_in_date, 
+          prev.stay_type, 
+          prev.room_id
+        )
+    }));
+  };
+
+  // 커스텀 요금 입력 핸들러
+  const handleCustomRateInput = (e) => {
+    const value = parseInt(e.target.value) || 0;
+    setFormData(prev => ({
+      ...prev,
+      rate_amount: value
+    }));
+  };
 
   // 상태 확인용 콘솔
   useEffect(() => {
     console.log("전체 객실:", rooms);
     console.log("현재 폼 데이터:", formData);
   }, [rooms, formData]);
+
+  // 객실 정보 표시 형식 함수 추가
+  const formatRoomLabel = (room) => {
+    const parts = [];
+    parts.push(`${room.room_number}호`);
+    
+    if (room.room_floor) parts.push(`${room.room_floor}층`);
+    if (room.room_building) parts.push(room.room_building);
+    if (room.room_name) parts.push(room.room_name);
+    if (room.room_type) parts.push(room.room_type);
+    
+    return parts.join(' ');
+  };
 
   // 단계별 컨텐츠 렌더링
   const renderStepContent = () => {
@@ -200,9 +239,11 @@ const ReservationModal = ({ onClose, onSave }) => {
                 required
               >
                 <option value="">선택해주세요</option>
-                <option value="대실">대실</option>
-                <option value="숙박">숙박</option>
-                <option value="장기">장기</option>
+                {STAY_TYPES.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </Select>
             </FormGroup>
           </>
@@ -252,37 +293,42 @@ const ReservationModal = ({ onClose, onSave }) => {
                 required
               >
                 <option value="">선택해주세요</option>
-                {availableRooms.map(room => (
-                  <option key={room.room_id} value={room.room_id}>
-                    {room.room_number}호
-                  </option>
+                {availableRooms
+                  .sort((a, b) => a.room_id - b.room_id) // room_id 기준으로 정렬
+                  .map(room => (
+                    <option key={room.room_id} value={room.room_id}>
+                      {formatRoomLabel(room)}
+                    </option>
                 ))}
               </Select>
             </FormGroup>
-            <FormGroup>
-              <Label>커스텀 요금</Label>
-              <RateContainer>
+            {formData.room_id && (
+              <FormGroup>
+                <Label>요금</Label>
+                {formData.custom_rate ? (
+                  <Input
+                    type="number"
+                    value={formData.rate_amount || ''}
+                    onChange={handleCustomRateInput}
+                    placeholder="요금을 입력하세요"
+                  />
+                ) : (
+                  <Input
+                    type="text"
+                    value={formData.rate_amount || '자동 계산된 요금이 표시됩니다'}
+                    disabled
+                  />
+                )}
                 <CustomRateCheckbox>
                   <input
                     type="checkbox"
-                    name="custom_rate"
                     checked={formData.custom_rate}
-                    onChange={handleInputChange}
+                    onChange={handleCustomRateChange}
                   />
                   <span>커스텀 요금 사용</span>
                 </CustomRateCheckbox>
-                {formData.custom_rate && (
-                  <Input
-                    type="number"
-                    name="stay_type_rate"
-                    value={formData.stay_type_rate}
-                    onChange={handleInputChange}
-                    placeholder="요금을 입력하세요"
-                    required
-                  />
-                )}
-              </RateContainer>
-            </FormGroup>
+              </FormGroup>
+            )}
             <FormGroup>
               <Label>메모</Label>
               <TextArea
@@ -298,26 +344,13 @@ const ReservationModal = ({ onClose, onSave }) => {
   };
 
   // 예약 저장
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSave = async () => {
     try {
-      setIsLoading(true);
-      
-      // 백엔드 타입으로 변환
-      const reservationData = {
-        ...formData,
-        stay_type: STAY_TYPE_MAP[formData.stay_type]
-      };
-
-      console.log('예약 데이터:', reservationData);
-      
-      await useReservationStore.getState().createReservation(reservationData);
-      onSave && onSave();
+      await reservationStore.createReservation(formData);
+      onSave?.();
       onClose();
     } catch (error) {
       setError(error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -326,7 +359,7 @@ const ReservationModal = ({ onClose, onSave }) => {
     try {
       if (step === 1) {
         // 기본 정보 검증
-        const requiredFields = ['guest_name', 'phone', 'booking_source', 'stay_type'];
+        const requiredFields = ['reservation_number', 'guest_name', 'phone', 'booking_source', 'stay_type'];
         const missingFields = requiredFields.filter(field => !formData[field]);
         if (missingFields.length > 0) {
           throw new Error('모든 필수 항목을 입력해주세요.');
@@ -337,13 +370,12 @@ const ReservationModal = ({ onClose, onSave }) => {
           throw new Error('체크인/아웃 날짜를 선택해주세요.');
         }
 
-        const availableRooms = await useReservationStore.getState().getAvailableRooms({
-          check_in_date: formData.check_in_date,
-          check_out_date: formData.check_out_date,
-          stay_type: formData.stay_type
-        });
-
-        setAvailableRooms(availableRooms);
+        const rooms = await reservationStore.getAvailableRooms(
+          formData.check_in_date,
+          formData.check_out_date,
+          formData.stay_type
+        );
+        setAvailableRooms(rooms);
       }
 
       setStep(prev => prev + 1);
@@ -357,6 +389,27 @@ const ReservationModal = ({ onClose, onSave }) => {
     setStep(prev => prev - 1);
     setError(null);
   };
+
+  useEffect(() => {
+    console.log('Current Settings:', settings);
+  }, [settings]);
+
+  // settings가 없을 때의 처리
+  if (!settings) {
+    return (
+      <ModalOverlay>
+        <ModalContent>
+          <ModalHeader>
+            <h2>예약 등록</h2>
+            <CloseButton onClick={onClose}><FaTimes /></CloseButton>
+          </ModalHeader>
+          <ModalBody>
+            <div>설정을 불러오는 중입니다...</div>
+          </ModalBody>
+        </ModalContent>
+      </ModalOverlay>
+    );
+  }
 
   return (
     <ModalOverlay>
@@ -385,7 +438,7 @@ const ReservationModal = ({ onClose, onSave }) => {
               ) : (
                 <Button 
                   type="button" 
-                  onClick={handleSubmit}
+                  onClick={handleSave}
                   disabled={isLoading}
                 >
                   {isLoading ? '저장 중...' : '저장'}
