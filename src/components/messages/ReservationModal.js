@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { getReservations } from '../../data/tempData';
 
 const ReservationModal = ({ isOpen, onClose, onSelect }) => {
   const [reservations, setReservations] = useState([]);
   const [selectedReservations, setSelectedReservations] = useState([]);
-
-  useEffect(() => {
-    const allReservations = getReservations();
-    const currentDate = new Date();
-    const futureReservations = allReservations.filter(reservation => 
-      new Date(reservation.checkIn) > currentDate
-    );
-    setReservations(futureReservations);
-  }, []);
 
   const handleCheckboxChange = (phone) => {
     setSelectedReservations(prev => 
