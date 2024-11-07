@@ -33,13 +33,27 @@ async function handleGetReservations(req, res) {
     let query;
     if (reservation_id) {
       query = sql`
-        SELECT * FROM reservations 
-        WHERE reservation_id = ${reservation_id}
+        SELECT 
+          r.*,
+          rm.room_number,
+          rm.room_floor,
+          rm.room_building,
+          rm.room_type
+        FROM reservations r
+        LEFT JOIN rooms rm ON r.room_id = rm.room_id
+        WHERE r.reservation_id = ${reservation_id}
       `;
     } else {
       query = sql`
-        SELECT * FROM reservations 
-        ORDER BY check_in DESC
+        SELECT 
+          r.*,
+          rm.room_number,
+          rm.room_floor,
+          rm.room_building,
+          rm.room_type
+        FROM reservations r
+        LEFT JOIN rooms rm ON r.room_id = rm.room_id
+        ORDER BY r.check_in_date DESC
       `;
     }
 
@@ -166,11 +180,52 @@ async function handleCreateReservation(req, res) {
  */
 async function handleUpdateReservation(req, res) {
   try {
-    const { reservation_id, ...updateData } = req.body;
+    const {
+      reservation_id,
+      reservation_number,
+      room_id,
+      check_in_date,
+      check_out_date,
+      check_in_time,
+      check_out_time,
+      stay_type,
+      booking_source,
+      rate_amount,
+      memo,
+      phone,
+      guest_name
+    } = req.body;
+
+    // 필수 필드 검증
+    const requiredFields = ['reservation_number', 'room_id', 'check_in_date', 
+      'check_out_date', 'check_in_time', 'check_out_time', 'stay_type', 
+      'booking_source', 'rate_amount', 'phone', 'guest_name'];
+    
+    const missingFields = requiredFields.filter(field => {
+      const value = req.body[field];
+      return value === undefined || value === null || value === '';
+    });
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({ 
+        error: `필수 필드 누락: ${missingFields.join(', ')}` 
+      });
+    }
 
     const { rows } = await sql`
       UPDATE reservations
-      SET ${sql(updateData)}, updated_at = CURRENT_TIMESTAMP
+      SET
+        reservation_number = ${reservation_number},
+        room_id = ${room_id},
+        check_in_date = ${check_in_date}::date,
+        check_out_date = ${check_out_date}::date,
+        check_out_time = ${check_out_time}::time,
+        stay_type = ${stay_type},
+        booking_source = ${booking_source},
+        rate_amount = ${rate_amount},
+        memo = ${memo || ''},
+        phone = ${phone},
+        guest_name = ${guest_name}
       WHERE reservation_id = ${reservation_id}
       RETURNING *
     `;
@@ -182,7 +237,10 @@ async function handleUpdateReservation(req, res) {
     res.status(200).json(rows[0]);
   } catch (error) {
     console.error('예약 수정 실패:', error);
-    res.status(500).json({ error: '예약 수정 실패' });
+    res.status(500).json({ 
+      error: '예약 수정 실패',
+      details: error.message 
+    });
   }
 }
 

@@ -7,24 +7,24 @@ import useReservationStore from '../../store/reservationStore';
 import useReservationSettingsStore from '../../store/reservationSettingsStore';
 import useRoomStore from '../../store/roomStore';
 
-const ReservationModal = ({ onClose, onSave }) => {
+const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave }) => {
   const [step, setStep] = useState(1);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [availableRooms, setAvailableRooms] = useState([]);
   const [formData, setFormData] = useState({
-    reservation_number: '',
-    guest_name: '',
-    phone: '',
-    booking_source: '',
-    stay_type: '',
-    check_in_date: null,
-    check_out_date: null,
-    check_in_time: '',
-    check_out_time: '',
-    room_id: null,
-    rate_amount: '',
-    memo: ''
+    reservation_number: initialData?.reservation_number || '',
+    guest_name: initialData?.guest_name || '',
+    phone: initialData?.phone || '',
+    booking_source: initialData?.booking_source || '',
+    stay_type: initialData?.stay_type || '',
+    check_in_date: initialData?.check_in_date ? new Date(initialData.check_in_date) : null,
+    check_out_date: initialData?.check_out_date ? new Date(initialData.check_out_date) : null,
+    check_in_time: initialData?.check_in_time || '',
+    check_out_time: initialData?.check_out_time || '',
+    room_id: initialData?.room_id || null,
+    rate_amount: initialData?.rate_amount || '',
+    memo: initialData?.memo || ''
   });
 
   const reservationStore = useReservationStore();
@@ -115,23 +115,40 @@ const ReservationModal = ({ onClose, onSave }) => {
   const handleRoomSelect = (e) => {
     const selectedRoomId = parseInt(e.target.value);
     
-    if (selectedRoomId && formData.check_in_date && formData.stay_type) {
-      try {
-        const calculatedRate = reservationStore.calculateRate(
-          formData.check_in_date,
-          formData.stay_type,
-          selectedRoomId
-        );
+    if (!selectedRoomId || !formData.check_in_date || !formData.check_out_date || !formData.stay_type) {
+      console.log('필수 데이터 누락:', { 
+        selectedRoomId, 
+        checkIn: formData.check_in_date,
+        checkOut: formData.check_out_date,
+        stayType: formData.stay_type 
+      });
+      return;
+    }
 
-        setFormData(prev => ({
-          ...prev,
-          room_id: selectedRoomId,
-          rate_amount: calculatedRate
-        }));
-      } catch (error) {
-        console.error('요금 계산 실패:', error);
-        setError(error.message);
-      }
+    try {
+      // 숙박 일수 계산
+      const checkIn = new Date(formData.check_in_date);
+      const checkOut = new Date(formData.check_out_date);
+      const days = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+      
+      // 1일 기준 요금 계산
+      const dailyRate = reservationStore.calculateRate(
+        formData.check_in_date,
+        formData.stay_type,
+        selectedRoomId
+      );
+
+      // 총 숙박 요금 계산
+      const totalRate = dailyRate * days;
+
+      setFormData(prev => ({
+        ...prev,
+        room_id: selectedRoomId,
+        rate_amount: totalRate
+      }));
+    } catch (error) {
+      console.error('요금 계산 실패:', error);
+      setError(error.message);
     }
   };
 
@@ -346,10 +363,35 @@ const ReservationModal = ({ onClose, onSave }) => {
   // 예약 저장
   const handleSave = async () => {
     try {
-      await reservationStore.createReservation(formData);
-      onSave?.();
+      // 날짜 데이터 변환
+      const formattedData = {
+        ...formData,
+        check_in_date: formData.check_in_date instanceof Date 
+          ? formData.check_in_date.toISOString().split('T')[0]
+          : formData.check_in_date,
+        check_out_date: formData.check_out_date instanceof Date 
+          ? formData.check_out_date.toISOString().split('T')[0]
+          : formData.check_out_date,
+        check_in_time: formData.check_in_time || null,
+        check_out_time: formData.check_out_time || null,
+        rate_amount: parseInt(formData.rate_amount) || 0
+      };
+
+      if (isEdit) {
+        if (!initialData.reservation_id) {
+          throw new Error('예약 ID가 없습니다.');
+        }
+        await reservationStore.updateReservation(
+          initialData.reservation_id,
+          formattedData
+        );
+      } else {
+        await reservationStore.createReservation(formattedData);
+      }
+      await onSave?.();
       onClose();
     } catch (error) {
+      console.error('저장 실패:', error);
       setError(error.message);
     }
   };

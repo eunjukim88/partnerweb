@@ -102,7 +102,7 @@ const useReservationStore = create(
             throw new Error('선택하신 날짜는 예약이 불가능합니다.');
           }
 
-          // 4. ��실 예약 중복 확인
+          // 4. 실 예약 중복 확인
           const reservations = get().reservations;
           const hasOverlap = reservations.some(r => 
             r.room_id === data.room_id &&
@@ -255,10 +255,22 @@ const useReservationStore = create(
       updateReservation: async (reservation_id, data) => {
         set({ isLoading: true });
         try {
+          // 날짜 형식 변환
+          const updateData = {
+            ...data,
+            check_in_date: data.check_in_date instanceof Date 
+              ? data.check_in_date.toISOString().split('T')[0]
+              : data.check_in_date,
+            check_out_date: data.check_out_date instanceof Date 
+              ? data.check_out_date.toISOString().split('T')[0]
+              : data.check_out_date
+          };
+
           const response = await axios.put('/api/reservations/reservations', {
             reservation_id,
-            ...data
+            ...updateData
           });
+
           set(state => ({
             reservations: state.reservations.map(r => 
               r.reservation_id === reservation_id ? response.data : r
