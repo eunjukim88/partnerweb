@@ -12,77 +12,75 @@ const useRoomStore = create(persist(
       set({ isLoading: true, error: null });
       try {
         const response = await axios.get('/api/mypage/rooms');
-        console.log('Raw API Response:', response.data);
+        if (!response.data) {
+          throw new Error('데이터가 없습니다');
+        }
+        
+        const sortedRooms = response.data.sort((a, b) => {
+          const aNum = parseInt(a.room_number);
+          const bNum = parseInt(b.room_number);
+          return isNaN(aNum) || isNaN(bNum) ? 0 : aNum - bNum;
+        });
 
-        const mappedRooms = response.data.map(room => {
-          const parsedRoomId = parseInt(room.room_id);
-          if (isNaN(parsedRoomId)) {
-            console.error('Invalid room_id in response:', room);
-            return null;
-          }
-
-          return {
-            room_id: parsedRoomId,
-            room_number: room.room_number?.toString() || '',
-            room_floor: room.room_floor || '',
-            room_building: room.room_building || '',
-            room_name: room.room_name || '',
-            room_type: room.room_type || '',
-            stay_type: room.stay_type || null,
-            room_status: room.room_status || null,
-            show_floor: Boolean(room.show_floor),
-            show_building: Boolean(room.show_building),
-            show_name: Boolean(room.show_name),
-            show_type: Boolean(room.show_type),
-            memo: room.memo || '',
-            rate_hourly_weekday: parseInt(room.rate_hourly_weekday) || 0,
-            rate_hourly_friday: parseInt(room.rate_hourly_friday) || 0,
-            rate_hourly_weekend: parseInt(room.rate_hourly_weekend) || 0,
-            rate_nightly_weekday: parseInt(room.rate_nightly_weekday) || 0,
-            rate_nightly_friday: parseInt(room.rate_nightly_friday) || 0,
-            rate_nightly_weekend: parseInt(room.rate_nightly_weekend) || 0
-          };
-        }).filter(room => room !== null);
-
-        set({ rooms: mappedRooms, isLoading: false, error: null });
+        set({ 
+          rooms: sortedRooms, 
+          isLoading: false 
+        });
       } catch (error) {
         console.error('객실 조회 실패:', error);
-        set({ error: error.response?.data?.error || '객실 조회에 실패했습니다.', isLoading: false });
+        set({ 
+          error: error.response?.data?.details || error.message,
+          isLoading: false,
+          rooms: [] 
+        });
       }
     },
 
     updateRoom: async (room_id, updatedData) => {
       set({ isLoading: true, error: null });
       try {
-        const requestData = {
-          room_id,
-          room_floor: updatedData.roomData.room_floor,
-          room_building: updatedData.roomData.room_building,
-          room_name: updatedData.roomData.room_name,
-          room_type: updatedData.roomData.room_type,
-          show_floor: updatedData.roomData.show_floor,
-          show_building: updatedData.roomData.show_building,
-          show_name: updatedData.roomData.show_name,
-          show_type: updatedData.roomData.show_type,
-          ...updatedData.ratesData
+        const currentRoom = get().rooms.find(r => r.room_id === parseInt(room_id));
+        
+        if (!currentRoom) {
+          throw new Error('객실을 찾을 수 없습니다.');
+        }
+
+        const roomData = {
+          room_floor: updatedData.room_floor,
+          room_building: updatedData.room_building,
+          room_name: updatedData.room_name,
+          room_type: updatedData.room_type,
+          room_status: updatedData.room_status,
+          stay_type: updatedData.stay_type || null,
+          show_floor: updatedData.show_floor,
+          show_building: updatedData.show_building,
+          show_name: updatedData.show_name,
+          show_type: updatedData.show_type,
+          memo: updatedData.memo
         };
 
-        const response = await axios.put('/api/mypage/rooms', requestData);
-        
-        if (response.data) {
-          set(state => ({
-            rooms: state.rooms.map(room =>
-              room.room_id === room_id ? { ...room, ...response.data } : room
-            ),
-            isLoading: false,
-            error: null
-          }));
-          return response.data;
+        const response = await axios.put('/api/mypage/rooms', {
+          room_id: parseInt(room_id),
+          roomData
+        });
+
+        if (!response.data || !response.data.room_id) {
+          throw new Error('서버 응답 데이터가 올바르지 않습니다.');
         }
+
+        set(state => ({
+          rooms: state.rooms.map(room => 
+            room.room_id === parseInt(room_id) ? response.data : room
+          )
+        }));
+
+        return response.data;
       } catch (error) {
         console.error('객실 수정 실패:', error);
-        const errorMessage = error.response?.data?.error || '객실 수정에 실패했습니다.';
-        set({ error: errorMessage, isLoading: false });
+        set({ 
+          error: error.response?.data?.error || error.message, 
+          isLoading: false 
+        });
         throw error;
       }
     },

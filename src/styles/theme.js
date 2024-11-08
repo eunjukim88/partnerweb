@@ -39,7 +39,8 @@ const theme = {
       buttonQuinary: {
         text: "#FFFFFF",
         background: "#E42043"
-      }
+      },
+      primary: '#4A90E2',
     },
     button: {
       borderRadius: "5px",

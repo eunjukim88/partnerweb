@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FaThLarge, FaList, FaFilter, FaChevronDown } from 'react-icons/fa';
 import styled from 'styled-components';
 import RoomCard from '../../src/components/rooms/RoomCard';
@@ -7,19 +7,27 @@ import RoomList from '../../src/components/rooms/RoomList';
 import theme from '../../src/styles/theme';
 import RootLayout from '../../src/core/App';
 import { useRouter } from 'next/router';
-import useReservationStore from '../../src/store/reservationStore';
+import useReservationDisplayStore from '../../src/store/reservationDisplayStore';
 import useRoomStore from '../../src/store/roomStore';
 
 const RoomsPage = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [viewMode, setViewMode] = useState('card');
-    const [filter, setFilter] = useState('all');
-    const [statusFilter, setStatusFilter] = useState('all');
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
     const { rooms, fetchRooms } = useRoomStore();
-    const { reservations, fetchReservations } = useReservationStore();
+    const { 
+      reservations, 
+      filteredReservations,
+      fetchReservations, 
+      isLoading,
+      error,
+      getRoomReservationStatus,
+      getRoomReservationTimes,
+      bookingSource,
+      stayType
+    } = useReservationDisplayStore();
   
     useEffect(() => {
       const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -50,84 +58,68 @@ const RoomsPage = () => {
       );
     };
   
-    const filteredRooms = rooms.map(room => {
-      const currentReservation = getCurrentReservation(room.number);
-      return {
-        ...room,
-        status: currentReservation 
-          ? currentReservation.stay_type === '대실' 
-            ? 'hourlyStay' 
-            : currentReservation.stay_type === '숙박' 
-              ? 'overnightStay' 
-              : currentReservation.stay_type === '장기' 
-                ? 'longStay' 
-                : room.status 
-          : 'vacant',
-        checkIn: currentReservation?.check_in,
-        checkOut: currentReservation?.check_out,
-        currentReservation: currentReservation
-      };
-    }).filter(room => {
-      if (statusFilter === 'all' && filter === 'all') return true;
-      
-      if (statusFilter === 'vacant') {
-        return !getCurrentReservation(room.number);
-      }
-      
-      if (filter !== 'all') {
-        const currentReservation = getCurrentReservation(room.number);
-        if (!currentReservation) return false;
-
-        const filterMap = {
-          hourly: '대실',
-          overnight: '숙박',
-          long: '장기'
+    const filteredRooms = useMemo(() => {
+      return rooms.map(room => {
+        const status = getRoomReservationStatus(room.room_id);
+        const times = getRoomReservationTimes(room.room_id);
+        
+        return {
+          ...room,
+          status,
+          reservationTimes: times,
+          currentReservation: filteredReservations.find(res => 
+            res.room_id === room.room_id &&
+            new Date(res.check_in_date) <= currentTime &&
+            new Date(res.check_out_date) >= currentTime
+          )
         };
-        return currentReservation.stay_type === filterMap[filter];
-      }
-      
-      const currentReservation = getCurrentReservation(room.number);
-      if (currentReservation) {
-        const reservationStatusMap = {
-          '대실': 'hourlyStay',
-          '숙박': 'overnightStay',
-          '장기': 'longStay'
-        };
-        return reservationStatusMap[currentReservation.stay_type] === statusFilter;
-      }
-      
-      return room.status === statusFilter;
-    });
+      }).filter(room => {
+        if (bookingSource === 'all' && stayType === 'all') return true;
+        
+        if (bookingSource === 'vacant') {
+          return room.status === 'vacant';
+        }
+        
+        if (stayType !== 'all') {
+          return room.status === stayType;
+        }
+        
+        return room.status === bookingSource;
+      });
+    }, [rooms, getRoomReservationStatus, getRoomReservationTimes, filteredReservations, 
+        currentTime, bookingSource, stayType]);
 
     const handleEditRoom = (room) => {
       router.push({
         pathname: '/mypage',
         query: { 
           section: 'room-edit',
-          roomNumber: room.number 
+          roomId: room.room_id 
         }
       });
     };
 
-    const getTabCount = (tabFilter) => {
-      if (tabFilter === 'all') return filteredRooms.length;
+    const getTabCount = (value) => {
+      if (value === 'all') return filteredReservations.length;
       
-      return rooms.filter(room => {
-        const currentReservation = getCurrentReservation(room.number);
-        if (!currentReservation) return false;
-
-        switch(tabFilter) {
-          case 'hourly':
-            return currentReservation.stay_type === '대실';
-          case 'overnight':
-            return currentReservation.stay_type === '숙박';
-          case 'long':
-            return currentReservation.stay_type === '장기';
+      return filteredReservations.filter(reservation => {
+        switch(value) {
+          case 'hourlyStay':
+            return reservation.stay_type === '대실';
+          case 'overnightStay':
+            return reservation.stay_type === '숙박';
+          case 'longStay':
+            return reservation.stay_type === '장기';
+          case 'vacant':
+            return !reservation.stay_type;
           default:
             return false;
         }
       }).length;
     };
+
+    if (isLoading) return <LoadingMessage>로딩 중...</LoadingMessage>;
+    if (error) return <LoadingMessage>에러: {error}</LoadingMessage>;
 
     return (
         <RootLayout>
@@ -137,70 +129,41 @@ const RoomsPage = () => {
           <CurrentTime>{currentTime.toLocaleString('ko-KR', { hour12: false })}</CurrentTime>
         </HeaderWrapper>
         <ControlContainer>
-          <TabContainer>
-            {['all', 'hourly', 'overnight', 'long'].map(tabFilter => (
-              <Tab 
-                key={tabFilter}
-                $active={filter === tabFilter} 
-                onClick={() => setFilter(tabFilter)} 
-                color={theme.colors[tabFilter === 'all' ? 'vacant' : `${tabFilter}Stay`]}
-              >
-                {tabFilter === 'all' ? '전체' : 
-                 tabFilter === 'hourly' ? '대실' : 
-                 tabFilter === 'overnight' ? '숙박' : '장기'}
-                <Count>{getTabCount(tabFilter)}</Count>
-              </Tab>
-            ))}
-          </TabContainer>
+          <TabContainer />
           <ControlPanel>
-            <FilterSelectWrapper>
-              <FilterIcon />
-              <FilterSelect 
-                value={statusFilter} 
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">전체 객실 상태</option>
-                <option value="vacant">공실</option>
-                <option value="longStay">장기</option>
-                <option value="overnightStay">숙박</option>
-                <option value="hourlyStay">대실</option>
-                <option value="cleaningRequested">청소요청</option>
-                <option value="cleaningInProgress">청소중</option>
-                <option value="cleaningComplete">청소완료</option>
-                <option value="salesStopped">판매중지</option>
-                <option value="inspectionRequested">점검요청</option>
-                <option value="inspectionComplete">점검완료</option>
-                <option value="underInspection">점검중</option>
-                <option value="reservationComplete">예약완료</option>
-              </FilterSelect>
-              <DropdownIcon />
-            </FilterSelectWrapper>
+            <FilterSelect />
             <ViewModeButtons>
               {['card', 'list'].map(mode => (
-                <ViewModeButton key={mode} active={viewMode === mode} onClick={() => setViewMode(mode)}>
+                <ViewModeButton 
+                  key={mode} 
+                  active={viewMode === mode} 
+                  onClick={() => setViewMode(mode)}
+                >
                   {mode === 'card' ? <FaThLarge /> : <FaList />}
                 </ViewModeButton>
               ))}
             </ViewModeButtons>
           </ControlPanel>
         </ControlContainer>
-        {loading ? (
+        {isLoading ? (
           <LoadingMessage>로딩 중...</LoadingMessage>
-        ) : viewMode === 'card' ? (
-          <RoomGrid>
-            {filteredRooms.map(room => (
-              <RoomCard 
-                key={room.number} 
-                room={room}
-                onEdit={() => handleEditRoom(room)}
-              />
-            ))}
-          </RoomGrid>
         ) : (
-          <RoomList 
-            rooms={filteredRooms} 
-            onEditRoom={handleEditRoom}
-          />
+          viewMode === 'card' ? (
+            <RoomGrid>
+              {filteredRooms.map(room => (
+                <RoomCard 
+                  key={room.room_id}
+                  room={room}
+                  onEdit={() => handleEditRoom(room)}
+                />
+              ))}
+            </RoomGrid>
+          ) : (
+            <RoomList 
+              rooms={filteredRooms}
+              onEditRoom={handleEditRoom}
+            />
+          )
         )}
       </PageContent>
     </RootLayout>
@@ -226,7 +189,7 @@ const Title = styled.h1`
 `;
 
 const CurrentTime = styled.div`
-  font-size: 18px;
+  font-size: 22px;
 `;
 
 const ControlContainer = styled.div`
@@ -236,17 +199,18 @@ const ControlContainer = styled.div`
   margin-bottom: 10px;
 `;
 
-const TabContainer = styled.div`
+const TabWrapper = styled.div`
   display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
 `;
 
 const Tab = styled.button`
-  background-color: ${props => props.$active ? theme.colors.buttonPrimary.background : 'transparent'};
-  color: ${props => props.$active ? theme.colors.buttonPrimary.text : theme.colors.text};
-  border: 1px solid ${props => props.color};
-  padding: 8px 15px;
-  margin-right: 10px;
-  border-radius: 5px;
+  padding: 8px 16px;
+  border: 1px solid ${props => props.$active ? props.color : '#ddd'};
+  background-color: ${props => props.$active ? props.color : 'white'};
+  color: ${props => props.$active ? 'white' : props.color};
+  border-radius: 4px;
   font-size: 14px;
   font-weight: bold;
   cursor: pointer;
@@ -254,13 +218,16 @@ const Tab = styled.button`
 
   &:hover {
     background-color: ${props => props.color};
-    color: #ffffff;
+    color: white;
   }
 `;
 
 const Count = styled.span`
-  margin-left: 5px;
-  font-weight: bold;
+  margin-left: 8px;
+  font-size: 12px;
+  background-color: ${props => props.$active ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)'};
+  padding: 2px 6px;
+  border-radius: 10px;
 `;
 
 const ControlPanel = styled.div`
@@ -284,22 +251,27 @@ const FilterIcon = styled(FaFilter)`
 
 const DropdownIcon = styled(FaChevronDown)`
   position: absolute;
-  right: 10px;
+  right: 35px;
   top: 50%;
   transform: translateY(-50%);
   color: #535353;
 `;
 
-const FilterSelect = styled.select`
-  appearance: none;
-  background-color: #f0f0f0;
-  border: none;
-  padding: 10px 30px 10px 35px;
-  margin-right: 10px;
-  border-radius: 5px;
-  cursor: pointer;
+const StyledSelect = styled.select`
+  padding: 8px 25px 8px 35px;
+  margin-right: 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
   font-size: 14px;
-  width: 200px;
+  appearance: none;
+  background-color: white;
+  cursor: pointer;
+  min-width: 200px;
+
+  &:focus {
+    outline: none;
+    border-color: ${theme.colors.primary};
+  }
 `;
 
 const ViewModeButtons = styled.div`
@@ -327,5 +299,104 @@ const LoadingMessage = styled.div`
   font-size: 18px;
   margin-top: 20px;
 `;
+
+const TabContainer = () => {
+  const { 
+    setStayType, 
+    stayType,
+    filteredReservations 
+  } = useReservationDisplayStore();
+  
+  const getTabCount = (value) => {
+    if (value === 'all') return filteredReservations.length;
+    
+    return filteredReservations.filter(reservation => {
+      switch(value) {
+        case 'hourlyStay':
+          return reservation.stay_type === '대실';
+        case 'overnightStay':
+          return reservation.stay_type === '숙박';
+        case 'longStay':
+          return reservation.stay_type === '장기';
+        case 'vacant':
+          return !reservation.stay_type;
+        default:
+          return false;
+      }
+    }).length;
+  };
+
+  const tabFilters = [
+    { id: 'all', label: '전체', value: 'all' },
+    { id: 'hourly', label: '대실', value: 'hourlyStay' },
+    { id: 'overnight', label: '숙박', value: 'overnightStay' },
+    { id: 'long', label: '장기', value: 'longStay' }
+  ];
+
+  return (
+    <TabWrapper>
+      {tabFilters.map(({ id, label, value }) => (
+        <Tab 
+          key={id}
+          $active={stayType === value} 
+          onClick={() => setStayType(value)}
+          color={theme.colors[value === 'all' ? 'primary' : value]}
+        >
+          {label}
+          <Count $active={stayType === value}>
+            {getTabCount(value)}
+          </Count>
+        </Tab>
+      ))}
+    </TabWrapper>
+  );
+};
+
+const FilterSelect = () => {
+  const { 
+    bookingSource, 
+    setBookingSource,
+    setStayType 
+  } = useReservationDisplayStore();
+
+  const statusOptions = [
+    { value: 'all', label: '전체 객실 상태' },
+    { value: 'vacant', label: '공실' },
+    { value: 'longStay', label: '장기' },
+    { value: 'overnightStay', label: '숙박' },
+    { value: 'hourlyStay', label: '대실' },
+    { value: 'cleaningRequested', label: '청소요청' },
+    { value: 'cleaningInProgress', label: '청소중' },
+    { value: 'cleaningComplete', label: '청소완료' },
+    { value: 'salesStopped', label: '판매중지' },
+    { value: 'inspectionRequested', label: '점검요청' },
+    { value: 'inspectionComplete', label: '점검완료' },
+    { value: 'underInspection', label: '점검중' },
+    { value: 'reservationComplete', label: '예약완료' }
+  ];
+
+  return (
+    <FilterSelectWrapper>
+      <FilterIcon />
+      <StyledSelect 
+        value={bookingSource} 
+        onChange={(e) => {
+          const value = e.target.value;
+          setBookingSource(value);
+          if (value !== bookingSource) {
+            setStayType('all');
+          }
+        }}
+      >
+        {statusOptions.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </StyledSelect>
+      <DropdownIcon />
+    </FilterSelectWrapper>
+  );
+};
 
 export default RoomsPage;

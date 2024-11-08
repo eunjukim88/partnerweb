@@ -61,7 +61,10 @@ async function handleGetReservations(req, res) {
     res.status(200).json(rows);
   } catch (error) {
     console.error('예약 조회 실패:', error);
-    res.status(500).json({ error: '예약 조회 실패' });
+    res.status(500).json({ 
+      error: '예약 조회 실패',
+      details: error.message 
+    });
   }
 }
 
@@ -219,13 +222,15 @@ async function handleUpdateReservation(req, res) {
         room_id = ${room_id},
         check_in_date = ${check_in_date}::date,
         check_out_date = ${check_out_date}::date,
+        check_in_time = ${check_in_time}::time,
         check_out_time = ${check_out_time}::time,
         stay_type = ${stay_type},
         booking_source = ${booking_source},
         rate_amount = ${rate_amount},
         memo = ${memo || ''},
         phone = ${phone},
-        guest_name = ${guest_name}
+        guest_name = ${guest_name},
+        updated_at = CURRENT_TIMESTAMP
       WHERE reservation_id = ${reservation_id}
       RETURNING *
     `;

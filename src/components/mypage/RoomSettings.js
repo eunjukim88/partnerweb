@@ -61,32 +61,29 @@ const RoomSettings = () => {
         throw new Error('객실 ID가 누락되었습니다.');
       }
 
-      const roomDataToUpdate = {
-        roomData: {
-          room_floor: roomData.room_floor,
-          room_building: roomData.room_building,
-          room_name: roomData.room_name,
-          room_type: roomData.room_type,
-          show_floor: roomData.show_floor,
-          show_building: roomData.show_building,
-          show_name: roomData.show_name,
-          show_type: roomData.show_type
-        },
-        ratesData: {
-          rate_hourly_weekday: roomData.rate_hourly_weekday,
-          rate_hourly_friday: roomData.rate_hourly_friday,
-          rate_hourly_weekend: roomData.rate_hourly_weekend,
-          rate_nightly_weekday: roomData.rate_nightly_weekday,
-          rate_nightly_friday: roomData.rate_nightly_friday,
-          rate_nightly_weekend: roomData.rate_nightly_weekend
-        }
+      const existingRoom = rooms.find(r => r.room_id === room_id);
+      const updatedData = {
+        room_id: room_id,
+        room_floor: roomData.room_floor,
+        room_building: roomData.room_building,
+        room_name: roomData.room_name,
+        room_type: roomData.room_type,
+        show_floor: roomData.display?.floor ?? existingRoom.show_floor,
+        show_building: roomData.display?.building ?? existingRoom.show_building,
+        show_name: roomData.display?.name ?? existingRoom.show_name,
+        show_type: roomData.display?.type ?? existingRoom.show_type,
+        hourly: roomData.salesLimit?.hourly ?? existingRoom.hourly,
+        nightly: roomData.salesLimit?.nightly ?? existingRoom.nightly,
+        long_term: roomData.salesLimit?.long_term ?? existingRoom.long_term,
+        memo: roomData.memo
       };
 
-      await updateRoomStore(room_id, roomDataToUpdate);
+      await updateRoomStore(room_id, updatedData);
+      await fetchRooms();
       alert('객실 정보가 성공적으로 업데이트되었습니다.');
     } catch (error) {
-      console.error('객실 정보 업데이트 실패:', error);
-      alert(error.message || '객실 정보 업데이트에 실패했습니다.');
+      console.error('객실 수정 실패:', error);
+      alert(error.message || '객실 수정에 실패했습니다.');
     }
   };
 

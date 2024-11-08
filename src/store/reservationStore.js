@@ -180,9 +180,9 @@ const useReservationStore = create(
 
           return response.data;
         } catch (error) {
-          console.error('예약 생성 실패:', error);
-          set({ isLoading: false, error: error.response?.data?.error || error.message });
-          throw error;
+          handleError(error, '예약 생성 실패');
+        } finally {
+          set({ isLoading: false });
         }
       },
 
@@ -255,6 +255,18 @@ const useReservationStore = create(
       updateReservation: async (reservation_id, data) => {
         set({ isLoading: true });
         try {
+          // 기존 예약과 동일한 예약번호가 아닌 경우에만 중복 체크
+          const existingReservation = get().reservations.find(r => r.reservation_id === reservation_id);
+          if (existingReservation.reservation_number !== data.reservation_number) {
+            get().validateReservationNumber(data);
+          }
+
+          // 예약 가능 여부 재검증
+          await get().validateReservation({
+            ...data,
+            reservation_id // 자기 자신은 중복 체크에서 제외하기 위해
+          });
+
           // 날짜 형식 변환
           const updateData = {
             ...data,

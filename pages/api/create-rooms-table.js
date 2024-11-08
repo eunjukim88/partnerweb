@@ -29,7 +29,6 @@ export default async function handler(req, res) {
         room_building VARCHAR(50) NULL,
         room_name VARCHAR(100) NULL,
         room_type TEXT,
-        stay_type VARCHAR(10) CHECK (stay_type IN ('대실', '숙박', '장기', NULL)),
         room_status VARCHAR(50),
         show_floor BOOLEAN DEFAULT false,
         show_building BOOLEAN DEFAULT false,

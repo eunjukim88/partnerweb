@@ -31,12 +31,12 @@ const RoomEdit = () => {
       floor: false,
       building: false,
       name: false,
-      type: false,
+      type: false
     },
     salesLimit: {
       hourly: false,
       nightly: false,
-      long_term: false,
+      long_term: false
     },
     rates: {
       rate_hourly_weekday: 0,
@@ -44,8 +44,9 @@ const RoomEdit = () => {
       rate_hourly_weekend: 0,
       rate_nightly_weekday: 0,
       rate_nightly_friday: 0,
-      rate_nightly_weekend: 0,
+      rate_nightly_weekend: 0
     },
+    memo: ''
   });
 
   useEffect(() => {
@@ -58,27 +59,12 @@ const RoomEdit = () => {
 
   useEffect(() => {
     if (isDataLoaded && rooms.length > 0 && roomNumber) {
-      console.log('Current rooms:', rooms);
-      console.log('Looking for roomNumber:', roomNumber);
-
-      const roomData = rooms.find(r => {
-        console.log('Comparing:', {
-          current: r.room_number?.toString(),
-          target: roomNumber?.toString()
-        });
-        return r.room_number?.toString() === roomNumber?.toString();
-      });
-
-      console.log('Found room data:', roomData);
-
-      if (roomData && typeof roomData.room_id === 'number' && !isNaN(roomData.room_id)) {
+      const roomData = rooms.find(r => r.room_number?.toString() === roomNumber?.toString());
+      
+      if (roomData) {
         setRoom({
-          room_id: roomData.room_id,
-          room_number: roomData.room_number,
-          room_floor: roomData.room_floor || '',
-          room_building: roomData.room_building || '',
-          room_name: roomData.room_name || '',
-          room_type: roomData.room_type || '',
+          ...room,
+          ...roomData,
           display: {
             floor: Boolean(roomData.show_floor),
             building: Boolean(roomData.show_building),
@@ -91,19 +77,17 @@ const RoomEdit = () => {
             long_term: Boolean(roomData.long_term)
           },
           rates: {
-            rate_hourly_weekday: parseInt(roomData.rate_hourly_weekday) || 0,
-            rate_hourly_friday: parseInt(roomData.rate_hourly_friday) || 0,
-            rate_hourly_weekend: parseInt(roomData.rate_hourly_weekend) || 0,
-            rate_nightly_weekday: parseInt(roomData.rate_nightly_weekday) || 0,
-            rate_nightly_friday: parseInt(roomData.rate_nightly_friday) || 0,
-            rate_nightly_weekend: parseInt(roomData.rate_nightly_weekend) || 0
+            rate_hourly_weekday: roomData.rate_hourly_weekday || 0,
+            rate_hourly_friday: roomData.rate_hourly_friday || 0,
+            rate_hourly_weekend: roomData.rate_hourly_weekend || 0,
+            rate_nightly_weekday: roomData.rate_nightly_weekday || 0,
+            rate_nightly_friday: roomData.rate_nightly_friday || 0,
+            rate_nightly_weekend: roomData.rate_nightly_weekend || 0
           }
         });
-      } else {
-        console.error('Invalid room data found:', roomData);
       }
     }
-  }, [rooms, roomNumber, isDataLoaded]);
+  }, [isDataLoaded, rooms, roomNumber]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -154,11 +138,12 @@ const RoomEdit = () => {
 
   const handleSave = async () => {
     try {
-      if (!roomId) {
+      if (!room.room_id) {
         throw new Error('객실 ID가 누락되었습니다.');
       }
 
-      const roomData = {
+      const updateData = {
+        room_id: room.room_id,
         room_floor: room.room_floor,
         room_building: room.room_building,
         room_name: room.room_name,
@@ -166,21 +151,19 @@ const RoomEdit = () => {
         show_floor: room.display.floor,
         show_building: room.display.building,
         show_name: room.display.name,
-        show_type: room.display.type
+        show_type: room.display.type,
+        hourly: room.salesLimit.hourly,
+        nightly: room.salesLimit.nightly,
+        long_term: room.salesLimit.long_term,
+        memo: room.memo || ''
       };
 
-      const ratesData = {
-        rate_hourly_weekday: room.rates.rate_hourly_weekday,
-        rate_hourly_friday: room.rates.rate_hourly_friday,
-        rate_hourly_weekend: room.rates.rate_hourly_weekend,
-        rate_nightly_weekday: room.rates.rate_nightly_weekday,
-        rate_nightly_friday: room.rates.rate_nightly_friday,
-        rate_nightly_weekend: room.rates.rate_nightly_weekend
-      };
-
-      await updateRoom(parseInt(roomId), { roomData, ratesData });
-      alert('저장이 완료되었습니다.');
-      router.push('/mypage?section=roomSettings');
+      const response = await updateRoom(room.room_id, updateData);
+      
+      if (response) {
+        alert('저장되었습니다.');
+        router.push('/mypage?section=room-settings');
+      }
     } catch (error) {
       console.error('저장 실패:', error);
       alert(error.message || '저장에 실패했습니다.');

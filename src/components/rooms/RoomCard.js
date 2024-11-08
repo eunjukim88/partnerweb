@@ -1,6 +1,6 @@
 'use client'; // 클라이언트 사이드에서 실행되는 컴포넌트임을 명시
 
-import React, { useState, useEffect } from 'react'; // React 및 필요한 훅을 임포트
+import React, { useState, useEffect, useCallback } from 'react'; // React 및 필요한 훅을 임포트
 import styled, { keyframes } from 'styled-components'; // styled-components와 keyframes 임포트
 import { MdCreditCard, MdCreditCardOff } from "react-icons/md"; // Material Design 아이콘 임포트
 import { IoIosWarning } from "react-icons/io"; // iOS 경고 아이콘 임포트
@@ -8,6 +8,7 @@ import useRoomStore from '@/src/store/roomStore';
 import WifiIcon from '../WifiIcon'; // WifiIcon 컴포넌트 임포트
 import theme from '../../styles/theme'; // 테마 설정 임포트
 import useReservationSettingsStore from '@/src/store/reservationSettingsStore';
+import useReservationStore from '@/src/store/reservationStore';
 
 // RoomCard.js 상단에 추가
 const generateRandomCardStatus = () => {
@@ -41,38 +42,179 @@ const RoomNumberDisplay = ({ building, floor, number, name, type, display }) => 
 const RoomCard = ({ room }) => {
   const [mainCard, setMainCard] = useState(generateRandomCardStatus());
   const [subCard, setSubCard] = useState(generateRandomCardStatus());
+  const [roomStatus, setRoomStatus] = useState(room?.status || 'vacant');
   const { settings } = useReservationSettingsStore();
+  const { reservations } = useReservationStore();
 
+  // 현재 객실의 예약 상태를 확인하는 함수
+  const checkRoomReservation = useCallback(() => {
+    if (!room || !reservations) return null;
+
+    // 현재 날짜의 시작(00:00:00)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 현재 날짜의 끝(23:59:59)
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const currentReservation = reservations.find(reservation => {
+      const checkIn = new Date(reservation.check_in_date);
+      const checkOut = new Date(reservation.check_out_date);
+      
+      return reservation.room_id === room.room_id &&
+             checkIn <= endOfDay &&
+             checkOut >= today;
+    });
+
+    return currentReservation;
+  }, [room, reservations]);
+
+  // 객실 상태 업데이트
   useEffect(() => {
+    const reservation = checkRoomReservation();
+    if (reservation) {
+      const newStatus = 
+        reservation.stay_type === '대실' ? 'hourlyStay' :
+        reservation.stay_type === '숙박' ? 'overnightStay' :
+        reservation.stay_type === '장기' ? 'longStay' : 'reservationComplete';
+      
+      setRoomStatus(newStatus);
+    } else if (!room.status || room.status === '공실') {
+      setRoomStatus('공실');
+    }
+  }, [room, reservations, checkRoomReservation]);
+
+  // 카드 상태 업데이트 인터벌
+  useEffect(() => {
+    // 예약된 상태일 때는 카드 상태 변경 안함
+    if (roomStatus !== 'vacant') {
+      return;
+    }
+
     const statusInterval = setInterval(() => {
       setMainCard(generateRandomCardStatus());
       setSubCard(generateRandomCardStatus());
     }, 30000);
 
     return () => clearInterval(statusInterval);
-  }, []);
+  }, [roomStatus]);
 
   if (!room) return null;
 
   const needsCardAlert = !mainCard && !subCard;
 
+  // 시간 포맷 함수 추가
+  const formatTime = (time) => {
+    if (!time) return '';
+    // 시간 문자열에서 HH:mm 부분만 추출
+    return time.slice(0, 5);
+  };
+
+  // 지연 상태를 체크하는 함수 수정
+  const checkDelayStatus = (checkInTime, checkOutTime, stayType) => {
+    if (!checkInTime || !checkOutTime) return { isDelayed: false, type: null };
+    
+    const now = new Date();
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const [inHours, inMinutes] = checkInTime.slice(0, 5).split(':');
+    const [outHours, outMinutes] = checkOutTime.slice(0, 5).split(':');
+    
+    let checkInDate = new Date();
+    let checkOutDate = new Date();
+    
+    // 체크인 시간 설정
+    checkInDate.setHours(parseInt(inHours), parseInt(inMinutes), 0);
+    
+    // 체크아웃 시간 설정 (숙박/장기의 경우 다음날)
+    if (stayType === 'hourlyStay') {
+      checkOutDate.setHours(parseInt(outHours), parseInt(outMinutes), 0);
+    } else {
+      // 숙박, 장기의 경우 다음날
+      checkOutDate = new Date(tomorrow);
+      checkOutDate.setHours(parseInt(outHours), parseInt(outMinutes), 0);
+    }
+    
+    // 현재 시간과 비교
+    if (stayType === 'hourlyStay') {
+      // 대실의 경우 당일 기준으로 비교
+      if (now > checkOutDate) {
+        return { isDelayed: true, type: 'checkout' };
+      } else if (now > checkInDate) {
+        return { isDelayed: true, type: 'checkin' };
+      }
+    } else {
+      // 숙박/장기의 경우
+      const isToday = now.getDate() === today.getDate();
+      const isTomorrow = now.getDate() === tomorrow.getDate();
+      
+      if (isToday && now > checkInDate) {
+        return { isDelayed: true, type: 'checkin' };
+      } else if (isTomorrow && now > checkOutDate) {
+        return { isDelayed: true, type: 'checkout' };
+      }
+    }
+    
+    return { isDelayed: false, type: null };
+  };
+
   const getReservationTimes = () => {
-    if (room.status === 'vacant') return null;
+    if (roomStatus === 'vacant') return null;
 
-    const stayType = room.status === 'hourlyStay' ? 'hourly' : 
-                    room.status === 'overnightStay' ? 'nightly' : 
-                    room.status === 'longStay' ? 'long_term' : null;
+    let timeText = '';
+    let delayStatus = { isDelayed: false, type: null };
 
-    if (!stayType || !settings[stayType]) return null;
+    switch(roomStatus) {
+      case 'hourlyStay':
+        if (settings?.['대실']?.check_in_time && settings?.['대실']?.check_out_time) {
+          timeText = `${formatTime(settings['대실'].check_in_time)} ~ ${formatTime(settings['대실'].check_out_time)}`;
+          delayStatus = checkDelayStatus(settings['대실'].check_in_time, settings['대실'].check_out_time, 'hourlyStay');
+        } else {
+          timeText = '대실 시간 미설정';
+        }
+        break;
+      
+      case 'overnightStay':
+        if (settings?.['숙박']?.check_in_time && settings?.['숙박']?.check_out_time) {
+          timeText = `${formatTime(settings['숙박'].check_in_time)} ~ ${formatTime(settings['숙박'].check_out_time)}`;
+          delayStatus = checkDelayStatus(settings['숙박'].check_in_time, settings['숙박'].check_out_time, 'overnightStay');
+        } else {
+          timeText = '숙박 시간 미설정';
+        }
+        break;
+      
+      case 'longStay':
+        if (settings?.['장기']?.check_in_time && settings?.['장기']?.check_out_time) {
+          timeText = `${formatTime(settings['장기'].check_in_time)} ~ ${formatTime(settings['장기'].check_out_time)}`;
+          delayStatus = checkDelayStatus(settings['장기'].check_in_time, settings['장기'].check_out_time, 'longStay');
+        } else {
+          timeText = '장기 시간 미설정';
+        }
+        break;
+      
+      default:
+        return null;
+    }
 
-    const checkInTime = settings[stayType].check_in_time;
-    const checkOutTime = settings[stayType].check_out_time;
-
-    return `${checkInTime} ~ ${checkOutTime}`;
+    return (
+      <RoomTimes>
+        <TimeText isDelayed={delayStatus.isDelayed}>
+          {timeText}
+          {delayStatus.isDelayed && (
+            <DelayedBadge>
+              {delayStatus.type === 'checkin' ? '체크인 지연' : '체크아웃 지연'}
+            </DelayedBadge>
+          )}
+        </TimeText>
+      </RoomTimes>
+    );
   };
 
   return (
-    <CardContainer status={room.status || 'vacant'}>
+    <CardContainer status={roomStatus}>
       <RoomHeader>
         <RoomNumberDisplay 
           building={room.room_building}
@@ -87,16 +229,16 @@ const RoomCard = ({ room }) => {
             show_type: room.show_type
           }}
         />
-        {room.hasWifi && <WifiIcon />}
+        <IconContainer>
+          <WifiIcon />
+        </IconContainer>
       </RoomHeader>
       <StatusSection>
         <RoomStatus>
-          {getStatusText(room.status)}
+          {getStatusText(roomStatus)}
         </RoomStatus>
       </StatusSection>
-      <RoomTimes>
-        {getReservationTimes()}
-      </RoomTimes>
+      {getReservationTimes()}
       <BottomSection>
         <MemoSection>
           <MemoText>{room.memo || ''}</MemoText>
@@ -183,8 +325,8 @@ const CardContainer = styled.div`
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  justify-content: center;
   height: 180px;
+  position: relative;
 `;
 
 // 방 헤더 스타일링
@@ -192,6 +334,7 @@ const RoomHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 `;
 
 // 방 정보 스타일링
@@ -218,15 +361,15 @@ const RoomStatus = styled.div`
   font-size: 25px;
   font-weight: bold;
   color: inherit;
-  margin: 5px 0;
-  text-align: center; // 텍스트 가운데 정렬
+  text-align: center; // 텍스트 가운데 정��
 `;
 
 // 방 시간 표시 스타일링
 const RoomTimes = styled.div`
   text-align: center;
-  font-size: 14px;
-  margin: 5px 0;
+  margin: 10px 0;
+  min-height: 20px; // 시간이 없을 때도 공간 유지
+  color: inherit;
 `;
 
 // 하단 섹션 스타일링
@@ -234,13 +377,15 @@ const BottomSection = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  margin-top: auto;
 `;
 
-// 메모 섹션 스타일링
+// 메모 섹션 스링
 const MemoSection = styled.div`
   width: calc(100% - 90px);
   max-height: 2.8em;
   overflow: hidden;
+  margin-bottom: 5px;
 `;
 
 // 메모 텍스트 스타일링
@@ -333,5 +478,43 @@ const getStatusText = (status) => {
   return statusMap[status] || '공실';
 };
 
-export default RoomCard; // RoomCard 컴포넌트를 기본 내보내기
+const IconContainer = styled.div`
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+// 스타일 컴포넌트 추가
+const TimeText = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: ${props => props.isDelayed ? 'bold' : 'normal'};
+`;
+
+// 배경색만 깜빡이는 애니메이션 정의
+const backgroundBlink = keyframes`
+  0% { background-color: #00838F; }
+  50% { background-color: #006064; }
+  100% { background-color: #00838F; }
+`;
+
+const DelayedBadge = styled.span`
+  display: inline-block;
+  background-color: #00838F; // 청록색 계열
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  animation: ${backgroundBlink} 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(0, 131, 143, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+`;
+
+export default RoomCard; // RoomCard 컴포넌트를 기 내보내기
 

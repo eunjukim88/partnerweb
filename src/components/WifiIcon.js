@@ -1,52 +1,55 @@
-import React from 'react'; // React 라이브러리 임포트
-import { BiWifi, BiWifi2, BiWifi1, BiWifiOff } from 'react-icons/bi'; // Wi-Fi 아이콘 임포트
-import styled from 'styled-components'; // styled-components 임포트
+import React, { useState, useEffect } from 'react';
+import { BiWifi, BiWifi2, BiWifi1, BiWifiOff } from 'react-icons/bi';
+import styled from 'styled-components';
 
-const WifiIcon = () => { // WifiIcon 컴포넌트 정의
-  // 0-4 사이의 랜덤한 Wi-Fi 강도 생성
-  const randomStrength = Math.floor(Math.random() * 5);
-  
-  let Icon; // 사용할 아이콘을 저장할 변수
-  let status; // Wi-Fi 상태 텍스트를 저장할 변수
+const WifiIcon = () => {
+  const [wifiStrength, setWifiStrength] = useState(4);
 
-  if (randomStrength === 4) { // strength가 4인 경우
-    Icon = BiWifi; // BiWifi 아이콘 사용
-    status = '양호'; // 상태 텍스트 설정
-  } else if (randomStrength === 3) { // strength가 3인 경우
-    Icon = BiWifi2; // BiWifi2 아이콘 사용
-    status = '양호'; // 상태 텍스트 설정
-  } else if (randomStrength === 2) { // strength가 2인 경우
-    Icon = BiWifi1; // BiWifi1 아이콘 사용
-    status = '약함'; // 상태 텍스트 설정
-  } else { // 그 외의 경우
-    Icon = BiWifiOff; // BiWifiOff 아이콘 사용
-    status = '끊김'; // 상태 텍스트 설정
+  // 3초마다 Wi-Fi 강도 변경
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 3과 4 사이의 랜덤값만 생성 (강한 신호만 표시)
+      const newStrength = Math.random() > 0.5 ? 3 : 4;
+      setWifiStrength(newStrength);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  let Icon;
+  let status;
+
+  if (wifiStrength === 4) {
+    Icon = BiWifi;
+    status = '양호';
+  } else {
+    Icon = BiWifi2;
+    status = '양호';
   }
 
   return (
-    <WifiIconWrapper> {/* Wi-Fi 아이콘과 상태를 감싸는 래퍼 */}
-      <StyledWifiIcon as={Icon} /> {/* 선택된 아이콘을 스타일링하여 렌더링 */}
-      <WifiStatus>{status}</WifiStatus> {/* Wi-Fi 상태 텍스트 표시 */}
+    <WifiIconWrapper>
+      <StyledWifiIcon as={Icon} />
+      <WifiStatus>{status}</WifiStatus>
     </WifiIconWrapper>
   );
 };
 
-// Wi-Fi 아이콘과 상태 텍스트를 세로로 정렬하는 래퍼 스타일링
 const WifiIconWrapper = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
 `;
 
-// Wi-Fi 아이콘 스타일링
 const StyledWifiIcon = styled.svg`
-  font-size: 24px; // 아이콘 크기 설정
+  font-size: 24px;
+  color: inherit;
 `;
 
-// Wi-Fi 상태 텍스트 스타일링
 const WifiStatus = styled.span`
-  font-size: 12px; // 텍스트 크기 설정
-  margin-top: 2px; // 상단 여백 설정
+  font-size: 12px;
+  margin-top: 2px;
+  color: inherit;
 `;
 
-export default WifiIcon; // WifiIcon 컴포넌트를 기본 내보내기
+export default WifiIcon;
