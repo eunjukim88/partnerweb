@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react'; // React 및 �
 import styled, { keyframes } from 'styled-components'; // styled-components와 keyframes 임포트
 import { MdCreditCard, MdCreditCardOff } from "react-icons/md"; // Material Design 아이콘 임포트
 import { IoIosWarning } from "react-icons/io"; // iOS 경고 아이콘 임포트
-import useRoomStore from '@/src/store/roomStore';
 import WifiIcon from '../WifiIcon'; // WifiIcon 컴포넌트 임포트
 import theme from '../../styles/theme'; // 테마 설정 임포트
 import useReservationSettingsStore from '@/src/store/reservationSettingsStore';

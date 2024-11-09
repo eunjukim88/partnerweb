@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import useReservationDisplayStore from '../../store/reservationDisplayStore';
 import { FaSearch, FaEdit, FaTrash, FaRedo } from 'react-icons/fa';
@@ -91,14 +91,20 @@ const ReservationList = () => {
           <DateRangeContainer>
             <Input
               type="date"
-              value={startDate ? startDate.toISOString().split('T')[0] : ''}
-              onChange={(e) => setStartDate(new Date(e.target.value))}
+              value={formatDateToKorean(startDate)}
+              onChange={(e) => {
+                const date = e.target.value ? new Date(e.target.value) : null;
+                setStartDate(date);
+              }}
             />
             <span>~</span>
             <Input
               type="date"
-              value={endDate ? endDate.toISOString().split('T')[0] : ''}
-              onChange={(e) => setEndDate(new Date(e.target.value))}
+              value={formatDateToKorean(endDate)}
+              onChange={(e) => {
+                const date = e.target.value ? new Date(e.target.value) : null;
+                setEndDate(date);
+              }}
             />
           </DateRangeContainer>
 

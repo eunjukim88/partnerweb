@@ -18,7 +18,6 @@ const RoomsPage = () => {
 
     const { rooms, fetchRooms } = useRoomStore();
     const { 
-      reservations, 
       filteredReservations,
       fetchReservations, 
       isLoading,
@@ -47,16 +46,6 @@ const RoomsPage = () => {
 
       loadData();
     }, [fetchRooms, fetchReservations]);
-  
-    const getCurrentReservation = (roomNumber) => {
-      const now = new Date();
-      return reservations.find(res => 
-        res.room_number === roomNumber &&
-        new Date(res.check_in) <= now &&
-        new Date(res.check_out) >= now &&
-        res.status === 'confirmed'
-      );
-    };
   
     const filteredRooms = useMemo(() => {
       return rooms.map(room => {
@@ -97,25 +86,6 @@ const RoomsPage = () => {
           roomId: room.room_id 
         }
       });
-    };
-
-    const getTabCount = (value) => {
-      if (value === 'all') return filteredReservations.length;
-      
-      return filteredReservations.filter(reservation => {
-        switch(value) {
-          case 'hourlyStay':
-            return reservation.stay_type === '대실';
-          case 'overnightStay':
-            return reservation.stay_type === '숙박';
-          case 'longStay':
-            return reservation.stay_type === '장기';
-          case 'vacant':
-            return !reservation.stay_type;
-          default:
-            return false;
-        }
-      }).length;
     };
 
     if (isLoading) return <LoadingMessage>로딩 중...</LoadingMessage>;
@@ -304,22 +274,39 @@ const TabContainer = () => {
   const { 
     setStayType, 
     stayType,
-    filteredReservations 
+    getRoomReservationStatus,
+    filteredReservations
   } = useReservationDisplayStore();
   
+  const { rooms } = useRoomStore();
+  
   const getTabCount = (value) => {
-    if (value === 'all') return filteredReservations.length;
+    if (!rooms || !filteredReservations) return 0;
     
-    return filteredReservations.filter(reservation => {
+    if (value === 'all') return rooms.length;
+
+    const currentTime = new Date();
+    
+    return rooms.filter(room => {
+      const currentReservation = filteredReservations.find(res => 
+        res.room_id === room.room_id &&
+        new Date(res.check_in_date) <= currentTime &&
+        new Date(res.check_out_date) >= currentTime
+      );
+
+      if (!currentReservation) {
+        return value === 'vacant';
+      }
+
       switch(value) {
         case 'hourlyStay':
-          return reservation.stay_type === '대실';
+          return currentReservation.stay_type === '대실';
         case 'overnightStay':
-          return reservation.stay_type === '숙박';
+          return currentReservation.stay_type === '숙박';
         case 'longStay':
-          return reservation.stay_type === '장기';
+          return currentReservation.stay_type === '장기';
         case 'vacant':
-          return !reservation.stay_type;
+          return false;
         default:
           return false;
       }
