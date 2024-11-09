@@ -8,6 +8,11 @@ import WifiIcon from '../WifiIcon'; // WifiIcon 컴포넌트 임포트
 import theme from '../../styles/theme'; // 테마 설정 임포트
 import useReservationSettingsStore from '@/src/store/reservationSettingsStore';
 import useReservationStore from '@/src/store/reservationStore';
+import RoomStatusModal from './RoomStatusModal';
+import ReservationModal from '../reservations/ReservationModal';
+import useReservationDisplayStore from '../../store/reservationDisplayStore';
+import axios from 'axios';
+import useRoomStore from '@/src/store/roomStore';
 
 // RoomCard.js 상단에 추가
 const generateRandomCardStatus = () => {
@@ -39,65 +44,97 @@ const RoomNumberDisplay = ({ building, floor, number, name, type, display }) => 
 };
 
 const RoomCard = ({ room }) => {
+  const [isLoading, setIsLoading] = useState(true);
   const [mainCard, setMainCard] = useState(generateRandomCardStatus());
   const [subCard, setSubCard] = useState(generateRandomCardStatus());
-  const [roomStatus, setRoomStatus] = useState(room?.status || 'vacant');
+  const [roomStatus, setRoomStatus] = useState(room?.room_status || null);
   const { settings } = useReservationSettingsStore();
-  const { reservations } = useReservationStore();
+  const { reservations, isLoading: reservationsLoading } = useReservationStore();
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
+  const { setSelectedReservation } = useReservationDisplayStore();
+  const { getRoomReservationStatus } = useReservationDisplayStore();
+  const { rooms, updateRoom } = useRoomStore();
 
   // 현재 객실의 예약 상태를 확인하는 함수
   const checkRoomReservation = useCallback(() => {
     if (!room || !reservations) return null;
 
-    // 현재 날짜의 시작(00:00:00)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // 현재 날짜의 끝(23:59:59)
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
+    const now = new Date();
     const currentReservation = reservations.find(reservation => {
       const checkIn = new Date(reservation.check_in_date);
       const checkOut = new Date(reservation.check_out_date);
       
       return reservation.room_id === room.room_id &&
-             checkIn <= endOfDay &&
-             checkOut >= today;
+             checkIn <= now &&
+             checkOut >= now;
     });
 
     return currentReservation;
   }, [room, reservations]);
 
-  // 객실 상태 업데이트
+  // 객실 상태 초기화 및 업데이트
   useEffect(() => {
-    const reservation = checkRoomReservation();
-    if (reservation) {
-      const newStatus = 
-        reservation.stay_type === '대실' ? 'hourlyStay' :
-        reservation.stay_type === '숙박' ? 'overnightStay' :
-        reservation.stay_type === '장기' ? 'longStay' : 'reservationComplete';
-      
-      setRoomStatus(newStatus);
-    } else if (!room.status || room.status === '공실') {
-      setRoomStatus('공실');
-    }
-  }, [room, reservations, checkRoomReservation]);
+    if (reservationsLoading) return;
 
-  // 카드 상태 업데이트 인터벌
+    const initializeRoomStatus = async () => {
+      setIsLoading(true);
+      try {
+        // 1. room_status가 있는 경우
+        if (room.room_status) {
+          setRoomStatus(room.room_status);
+          return;
+        }
+
+        // 2. 현재 예약 확인
+        const currentReservation = checkRoomReservation();
+        if (currentReservation) {
+          const newStatus = 
+            currentReservation.stay_type === '대실' ? 'hourlyStay' :
+            currentReservation.stay_type === '숙박' ? 'overnightStay' :
+            currentReservation.stay_type === '장기' ? 'longStay' : 'reservationComplete';
+          
+          setRoomStatus(newStatus);
+        } else {
+          // 3. 예약이 없는 경우 공실로 설정
+          setRoomStatus('vacant');
+        }
+      } catch (error) {
+        console.error('객실 상태 초기화 실패:', error);
+        setRoomStatus('vacant');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeRoomStatus();
+  }, [room, reservations, reservationsLoading, checkRoomReservation]);
+
+  // 카드 상태 업데이트 인터벌 - 항상 실행되도록 수정
   useEffect(() => {
-    // 예약된 상태일 때는 카드 상태 변경 안함
-    if (roomStatus !== 'vacant') {
-      return;
+    let intervalId;
+    
+    if (roomStatus === 'vacant') {
+      intervalId = setInterval(() => {
+        setMainCard(generateRandomCardStatus());
+        setSubCard(generateRandomCardStatus());
+      }, 30000);
     }
 
-    const statusInterval = setInterval(() => {
-      setMainCard(generateRandomCardStatus());
-      setSubCard(generateRandomCardStatus());
-    }, 30000);
-
-    return () => clearInterval(statusInterval);
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [roomStatus]);
+
+  if (isLoading || reservationsLoading) {
+    return (
+      <CardContainer status="loading">
+        <LoadingSpinner />
+      </CardContainer>
+    );
+  }
 
   if (!room) return null;
 
@@ -212,60 +249,140 @@ const RoomCard = ({ room }) => {
     );
   };
 
+  // 카드 클릭 핸들러
+  const handleCardClick = () => {
+    setIsStatusModalOpen(true);
+  };
+
+  // 상태 변경 핸들러
+  const handleStatusChange = async (newStatus) => {
+    try {
+      const response = await axios.put(`/api/rooms/status`, {
+        room_id: room.room_id,
+        room_status: newStatus
+      });
+
+      if (response.status === 200) {
+        setRoomStatus(newStatus);
+        
+        // 공실로 변경 시 예약 정보 초기화
+        if (newStatus === 'vacant') {
+          setSelectedReservation(null);
+        }
+        return true;
+      }
+    } catch (error) {
+      console.error('상태 변경 실패:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || '상태 변경에 실패했습니다.');
+    }
+  };
+
+  // 메모 변경 핸들러
+  const handleMemoChange = async (newMemo) => {
+    try {
+      const response = await axios.put(`/api/rooms/memo`, {
+        room_id: room.room_id,
+        memo: newMemo
+      });
+
+      if (response.status === 200) {
+        return true;
+      }
+    } catch (error) {
+      console.error('메모 저장 실패:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || '메모 저장에 실패했습니다.');
+    }
+  };
+
+  const handleReservationClick = () => {
+    setIsStatusModalOpen(false);
+    setIsReservationModalOpen(true);
+  };
+
+  // 현재 객실의 예약 상태 확인
+  const currentReservation = getRoomReservationStatus(room.room_id);
+
   return (
-    <CardContainer status={roomStatus}>
-      <RoomHeader>
-        <RoomNumberDisplay 
-          building={room.room_building}
-          floor={room.room_floor}
-          number={room.room_number}
-          name={room.room_name}
-          type={room.room_type}
-          display={{
-            show_building: room.show_building,
-            show_floor: room.show_floor,
-            show_name: room.show_name,
-            show_type: room.show_type
+    <>
+      <CardContainer 
+        status={room.room_status || roomStatus} 
+        onClick={handleCardClick}
+      >
+        <RoomHeader>
+          <RoomNumberDisplay 
+            building={room.room_building}
+            floor={room.room_floor}
+            number={room.room_number}
+            name={room.room_name}
+            type={room.room_type}
+            display={{
+              show_building: room.show_building,
+              show_floor: room.show_floor,
+              show_name: room.show_name,
+              show_type: room.show_type
+            }}
+          />
+          <IconContainer>
+            <WifiIcon />
+          </IconContainer>
+        </RoomHeader>
+        <StatusSection>
+          <RoomStatus>
+            {getStatusText(roomStatus)}
+          </RoomStatus>
+        </StatusSection>
+        {getReservationTimes()}
+        <BottomSection>
+          <MemoSection>
+            <MemoText>{room.memo || ''}</MemoText>
+          </MemoSection>
+          <CardIconsContainer>
+            {needsCardAlert ? (
+              <AlertAnimation>
+                <IoIosWarning size={30} color="#FF0000" />
+              </AlertAnimation>
+            ) : (
+              <>
+                <CardIconWrapper>
+                  <CardLabel>M</CardLabel>
+                  <CardIcon active={mainCard}>
+                    {mainCard ? <MdCreditCard /> : <MdCreditCardOff />}
+                  </CardIcon>
+                </CardIconWrapper>
+                <CardIconWrapper>
+                  <CardLabel>S</CardLabel>
+                  <CardIcon active={subCard}>
+                    {subCard ? <MdCreditCard /> : <MdCreditCardOff />}
+                  </CardIcon>
+                </CardIconWrapper>
+              </>
+            )}
+          </CardIconsContainer>
+        </BottomSection>
+      </CardContainer>
+
+      {isStatusModalOpen && (
+        <RoomStatusModal
+          room={room}
+          onClose={() => setIsStatusModalOpen(false)}
+          onStatusChange={handleStatusChange}
+          onReservationClick={handleReservationClick}
+          onMemoChange={handleMemoChange}
+        />
+      )}
+
+      {isReservationModalOpen && (
+        <ReservationModal
+          isEdit={!!currentReservation}
+          initialData={currentReservation}
+          onClose={() => setIsReservationModalOpen(false)}
+          onSave={() => {
+            setIsReservationModalOpen(false);
+            // 필요한 경우 데이터 리프레시
           }}
         />
-        <IconContainer>
-          <WifiIcon />
-        </IconContainer>
-      </RoomHeader>
-      <StatusSection>
-        <RoomStatus>
-          {getStatusText(roomStatus)}
-        </RoomStatus>
-      </StatusSection>
-      {getReservationTimes()}
-      <BottomSection>
-        <MemoSection>
-          <MemoText>{room.memo || ''}</MemoText>
-        </MemoSection>
-        <CardIconsContainer>
-          {needsCardAlert ? (
-            <AlertAnimation>
-              <IoIosWarning size={30} color="#FF0000" />
-            </AlertAnimation>
-          ) : (
-            <>
-              <CardIconWrapper>
-                <CardLabel>M</CardLabel>
-                <CardIcon active={mainCard}>
-                  {mainCard ? <MdCreditCard /> : <MdCreditCardOff />}
-                </CardIcon>
-              </CardIconWrapper>
-              <CardIconWrapper>
-                <CardLabel>S</CardLabel>
-                <CardIcon active={subCard}>
-                  {subCard ? <MdCreditCard /> : <MdCreditCardOff />}
-                </CardIcon>
-              </CardIconWrapper>
-            </>
-          )}
-        </CardIconsContainer>
-      </BottomSection>
-    </CardContainer>
+      )}
+    </>
   );
 };
 
@@ -311,7 +428,10 @@ const DelayText = styled.span`
 
 // 카드 컨테이너 스타일링
 const CardContainer = styled.div`
-  background-color: ${props => theme.colors[props.status] || '#B3B3B3'}; // 상태에 따라 배경색 변경
+  background-color: ${props => 
+    props.status === 'loading' 
+      ? '#f5f5f5' 
+      : theme.colors[props.status] || theme.colors.vacant};
   color: ${props => 
     props.status === 'underInspection' || props.status === 'inspectionRequested' 
       ? '#000000' 
@@ -360,7 +480,7 @@ const RoomStatus = styled.div`
   font-size: 25px;
   font-weight: bold;
   color: inherit;
-  text-align: center; // 텍스트 가운데 정��
+  text-align: center; // 텍스트 가운데 정
 `;
 
 // 방 시간 표시 스타일링
@@ -513,6 +633,22 @@ const DelayedBadge = styled.span`
   animation: ${backgroundBlink} 1.5s ease-in-out infinite;
   box-shadow: 0 0 8px rgba(0, 131, 143, 0.5);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+`;
+
+// 로딩 상태를 위한 스타일 컴포넌트 추가
+const LoadingSpinner = styled.div`
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: auto;
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 `;
 
 export default RoomCard; // RoomCard 컴포넌트를 기 내보내기

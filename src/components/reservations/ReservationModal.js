@@ -6,6 +6,7 @@ import { BOOKING_SOURCES, STAY_TYPES, DAYS_OF_WEEK } from '../../constants/reser
 import useReservationStore from '../../store/reservationStore';
 import useReservationSettingsStore from '../../store/reservationSettingsStore';
 import useRoomStore from '../../store/roomStore';
+import PropTypes from 'prop-types';
 
 const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave }) => {
   const [step, setStep] = useState(1);
@@ -453,6 +454,13 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
     );
   }
 
+  // 초기 데이터 유효성 검사
+  useEffect(() => {
+    if (isEdit && !initialData?.reservation_id) {
+      console.error('Edit mode requires reservation_id in initialData');
+    }
+  }, [isEdit, initialData]);
+
   return (
     <ModalOverlay>
       <ModalContent>
@@ -596,5 +604,27 @@ const CloseButton = styled.button`
     color: #007bff;
   }
 `;
+
+// PropTypes 추가 (선택사항)
+ReservationModal.propTypes = {
+  isEdit: PropTypes.bool,
+  initialData: PropTypes.shape({
+    reservation_id: PropTypes.number,
+    reservation_number: PropTypes.string,
+    guest_name: PropTypes.string,
+    phone: PropTypes.string,
+    booking_source: PropTypes.string,
+    stay_type: PropTypes.string,
+    check_in_date: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+    check_out_date: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+    check_in_time: PropTypes.string,
+    check_out_time: PropTypes.string,
+    room_id: PropTypes.number,
+    rate_amount: PropTypes.number,
+    memo: PropTypes.string
+  }),
+  onClose: PropTypes.func.isRequired,
+  onSave: PropTypes.func.isRequired
+};
 
 export default ReservationModal;
