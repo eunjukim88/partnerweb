@@ -236,34 +236,32 @@ const useReservationStore = create(
 
         // API 관련 액션
         fetchReservations: async () => {
+          const state = get();
           set({ isLoading: true, error: null });
+          
           try {
-            const response = await axios.get('/api/reservations/reservations');
-            const reservationsWithRoomInfo = response.data.map(reservation => ({
-              ...reservation,
-              room_info: {
-                room_number: reservation.room_number,
-                room_floor: reservation.room_floor,
-                room_building: reservation.room_building,
-                room_type: reservation.room_type
+            const response = await axios.get('/api/reservations/reservations', {
+              params: {
+                searchTerm: state.searchTerm,
+                searchType: state.searchType,
+                startDate: dateUtils.formatDate(state.startDate),
+                endDate: dateUtils.formatDate(state.endDate)
               }
-            }));
+            });
 
             set({ 
-              reservations: reservationsWithRoomInfo,
-              filteredReservations: reservationsWithRoomInfo,
+              reservations: response.data,
+              filteredReservations: response.data,
               isLoading: false 
             });
-            return reservationsWithRoomInfo;
+            
+            return response.data;
           } catch (error) {
-            const errorMessage = handleApiError(error);
             set({ 
-              error: errorMessage, 
-              isLoading: false,
-              reservations: [],
-              filteredReservations: []
+              error: handleApiError(error), 
+              isLoading: false 
             });
-            throw new Error(errorMessage);
+            throw error;
           }
         },
 
@@ -537,6 +535,54 @@ const useReservationStore = create(
             const status = get().getRoomReservationStatus(room.room_id);
             return status === stayType;
           }).length;
+        },
+
+        setFilteredReservations: (filtered) => set({ filteredReservations: filtered }),
+
+        setSearchTerm: (term) => {
+          const state = get();
+          const value = term.toLowerCase();
+          
+          if (!value.trim()) {
+            set({ 
+              searchTerm: term,
+              filteredReservations: state.reservations,
+              currentPage: 1
+            });
+            return;
+          }
+
+          const filtered = state.reservations.filter(reservation => {
+            switch (state.searchType) {
+              case 'reservation_number':
+                return reservation.reservation_number?.toLowerCase().includes(value);
+              case 'guest_name':
+                return reservation.guest_name?.toLowerCase().includes(value);
+              case 'phone':
+                return reservation.phone?.includes(value);
+              default:
+                return true;
+            }
+          });
+
+          set({ 
+            searchTerm: term,
+            filteredReservations: filtered,
+            currentPage: 1
+          });
+        },
+
+        setSearchType: (type) => {
+          const state = get();
+          set({ 
+            searchType: type,
+            currentPage: 1
+          });
+          
+          // 검색어가 있으면 새로운 타입으로 재검색
+          if (state.searchTerm) {
+            state.setSearchTerm(state.searchTerm);
+          }
         }
       };
     },

@@ -28,7 +28,13 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
     memo: initialData?.memo || ''
   });
 
-  const reservationStore = useReservationStore();
+  const { 
+    createReservation, 
+    updateReservation, 
+    getAvailableRooms,
+    calculateRate,
+  } = useReservationStore();
+  
   const { settings } = useReservationSettingsStore();
   const { rooms } = useRoomStore();
 
@@ -42,7 +48,6 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
 
   // 숙박 유형 변경 핸들러
   const handleStayTypeChange = (value) => {
-    const settings = useReservationSettingsStore.getState().settings;
     const stayTypeSettings = settings[value];
     
     setFormData(prev => ({
@@ -52,8 +57,8 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
       rate_amount: null,
       check_in_date: null,
       check_out_date: null,
-      check_in_time: stayTypeSettings.check_in_time,  // 기본 시간 설정
-      check_out_time: stayTypeSettings.check_out_time  // 기본 시간 설정
+      check_in_time: stayTypeSettings?.check_in_time,
+      check_out_time: stayTypeSettings?.check_out_time
     }));
   };
 
@@ -77,22 +82,6 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
       }));
     }
     setError(null);
-  };
-
-  // fetchAvailableRooms 함수 추가
-  const fetchAvailableRooms = async () => {
-    if (formData.stay_type && formData.check_in_date && formData.check_out_date) {
-      try {
-        const rooms = await reservationStore.getAvailableRooms(
-          formData.check_in_date,
-          formData.check_out_date,
-          formData.stay_type
-        );
-        setAvailableRooms(rooms);
-      } catch (error) {
-        setError(error.message);
-      }
-    }
   };
 
   // 날짜 변경 핸들러 수정
@@ -125,38 +114,26 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
     const selectedRoomId = parseInt(e.target.value);
     
     if (!selectedRoomId || !formData.check_in_date || !formData.check_out_date || !formData.stay_type) {
-      console.log('필수 데이터 누락:', { 
-        selectedRoomId, 
-        checkIn: formData.check_in_date,
-        checkOut: formData.check_out_date,
-        stayType: formData.stay_type 
-      });
       return;
     }
 
     try {
-      // 숙박 일수 계산
       const checkIn = new Date(formData.check_in_date);
       const checkOut = new Date(formData.check_out_date);
       const days = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
       
-      // 1일 기준 요금 계산
-      const dailyRate = reservationStore.calculateRate(
+      const dailyRate = calculateRate(
         formData.check_in_date,
         formData.stay_type,
         selectedRoomId
       );
 
-      // 총 숙박 요금 계산
-      const totalRate = dailyRate * days;
-
       setFormData(prev => ({
         ...prev,
         room_id: selectedRoomId,
-        rate_amount: totalRate
+        rate_amount: dailyRate * days
       }));
     } catch (error) {
-      console.error('요금 계산 실패:', error);
       setError(error.message);
     }
   };
@@ -168,7 +145,7 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
       ...prev,
       custom_rate: isCustom,
       rate_amount: isCustom ? null : 
-        reservationStore.calculateRate(
+        calculateRate(
           prev.check_in_date, 
           prev.stay_type, 
           prev.room_id
@@ -386,12 +363,12 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
         if (!initialData.reservation_id) {
           throw new Error('예약 ID가 없습니다.');
         }
-        await reservationStore.updateReservation(
+        await updateReservation(
           initialData.reservation_id,
           formattedData
         );
       } else {
-        await reservationStore.createReservation(formattedData);
+        await createReservation(formattedData);
       }
       
       await onSave?.();
@@ -405,27 +382,14 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
   // 다음 단계로 이동
   const handleNext = async () => {
     try {
-      if (step === 1) {
-        // 기본 정보 검증
-        const requiredFields = ['reservation_number', 'guest_name', 'phone', 'booking_source', 'stay_type'];
-        const missingFields = requiredFields.filter(field => !formData[field]);
-        if (missingFields.length > 0) {
-          throw new Error('모든 필수 항목을 입력해주세요.');
-        }
-      } else if (step === 2) {
-        // 날짜 검증 및 가능한 객실 조회
-        if (!formData.check_in_date || !formData.check_out_date) {
-          throw new Error('체크인/아웃 날짜를 선택해주세요.');
-        }
-
-        const rooms = await reservationStore.getAvailableRooms(
+      if (step === 2 && formData.check_in_date && formData.check_out_date) {
+        const rooms = await getAvailableRooms(
           formData.check_in_date,
           formData.check_out_date,
           formData.stay_type
         );
         setAvailableRooms(rooms);
       }
-
       setStep(prev => prev + 1);
     } catch (error) {
       setError(error.message);

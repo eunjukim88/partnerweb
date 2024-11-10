@@ -21,64 +21,92 @@ const formatDateToKorean = (dateString) => {
 };
 
 const ReservationList = () => {
+  // 필요한 상태만 구독
   const { 
     reservations,
     filteredReservations,
     totalFilteredReservations,
+    isLoading,
+    error,
     currentPage,
     listSize,
     searchTerm,
     searchType,
     startDate,
     endDate,
-    bookingSource,
-    stayType,
     isModalOpen,
     selectedReservation,
-    isLoading,
-    error,
     
     fetchReservations,
     deleteReservation,
+    setModalOpen,
+    setSelectedReservation,
     setCurrentPage,
-    setListSize,
     setSearchTerm,
     setSearchType,
     setStartDate,
     setEndDate,
-    setBookingSource,
-    setStayType,
-    setModalOpen,
-    setSelectedReservation,
-    handleSearch,
-    handleQuickDate,
-    resetFilters
+    resetFilters,
   } = useReservationStore();
 
-  // 초기 데이터 로드
+  // 초기 데이터 로딩 및 날짜 설정
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const result = await fetchReservations();
-        console.log('서버 응답:', result);
-        
-        if (Array.isArray(result)) {
-          handleSearch();
-        }
-      } catch (error) {
-        console.error('예약 데이터 로딩 오류:', error);
-      }
-    };
-    loadData();
-  }, [fetchReservations, handleSearch]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    setStartDate(today);
+    setEndDate(today);
+    handleSearch();
+  }, []);
 
-  // 예약 데이터 변경 감지
-  useEffect(() => {
-    console.log('예약 데이터 변경됨:', reservations);
-    if (Array.isArray(reservations) && reservations.length > 0) {
-      handleSearch();
+  // 검색 핸들러 수정
+  const handleSearch = async () => {
+    try {
+      setCurrentPage(1);
+      await fetchReservations();
+    } catch (error) {
+      console.error('검색 오류:', error);
     }
-  }, [reservations]);
+  };
+
+  // QuickDateButtons 클릭 시 endDate만 변경
+  const handleQuickDate = (days) => {
+    const newEndDate = new Date(startDate);
+    newEndDate.setDate(newEndDate.getDate() + days);
+    newEndDate.setHours(0, 0, 0, 0);
+    
+    setEndDate(newEndDate);
+    handleSearch();
+  };
+
+  // 날짜 직접 선택 핸들러
+  const handleDateChange = (type, value) => {
+    const newDate = value ? new Date(value) : null;
+    if (newDate) {
+      newDate.setHours(0, 0, 0, 0);
+    }
+    
+    if (type === 'start') {
+      setStartDate(newDate);
+    } else {
+      setEndDate(newDate);
+    }
+    handleSearch();
+  };
+
+  // 실시간 검색 처리
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // 검색 타입 변경 핸들러
+  const handleSearchTypeChange = (e) => {
+    setSearchType(e.target.value);
+  };
+
+  // 페이지네이션 계산 - null 체크 추가
+  const totalItems = filteredReservations?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / (listSize || 10))); // listSize 0이면 기본값 10 사용
 
   if (isLoading) return <LoadingSpinner>로딩 중...</LoadingSpinner>;
   if (error) return <ErrorMessage>{error}</ErrorMessage>;
@@ -87,63 +115,52 @@ const ReservationList = () => {
     <Container>
       <Controls>
         <LeftControlGroup>
-          {/* 날짜 필터 */}
           <DateRangeContainer>
             <Input
               type="date"
               value={formatDateToKorean(startDate)}
-              onChange={(e) => {
-                const date = e.target.value ? new Date(e.target.value) : null;
-                setStartDate(date);
-              }}
+              onChange={(e) => handleDateChange('start', e.target.value)}
             />
             <span>~</span>
             <Input
               type="date"
               value={formatDateToKorean(endDate)}
-              onChange={(e) => {
-                const date = e.target.value ? new Date(e.target.value) : null;
-                setEndDate(date);
-              }}
+              onChange={(e) => handleDateChange('end', e.target.value)}
             />
           </DateRangeContainer>
-
-          {/* 빠른 날짜 선택 */}
+          
           <QuickDateButtons>
             <Button onClick={() => handleQuickDate(7)}>7일</Button>
             <Button onClick={() => handleQuickDate(30)}>30일</Button>
             <Button onClick={() => handleQuickDate(90)}>90일</Button>
           </QuickDateButtons>
-
-          {/* 필터 초기화 */}
-          <Button onClick={resetFilters}>
-            <FaRedo /> 초기화
-          </Button>
+          
         </LeftControlGroup>
-
+        
         <RightControlGroup>
-          {/* 검색 필터 */}
-          <Select value={searchType} onChange={(e) => setSearchType(e.target.value)}>
+          <Select 
+            value={searchType} 
+            onChange={handleSearchTypeChange}
+          >
             <option value="reservation_number">예약번호</option>
             <option value="guest_name">고객명</option>
             <option value="phone">연락처</option>
           </Select>
-
+          
           <SearchContainer>
             <Input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               placeholder="검색어를 입력하세요"
             />
-            <Button onClick={handleSearch}>
-              <FaSearch /> 검색
+            <Button onClick={() => setSearchTerm('')}>
+              <FaSearch /> 초기화
             </Button>
           </SearchContainer>
         </RightControlGroup>
       </Controls>
-
-      {/* 예약 목록 테이블 */}
+      
       <ReservationTable>
         <thead>
           <tr>
@@ -196,32 +213,27 @@ const ReservationList = () => {
           )}
         </tbody>
       </ReservationTable>
-
-      {/* 페이지네이션 */}
+      
       <PaginationButtons>
-        <PaginationButton onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
-          처음
-        </PaginationButton>
         <PaginationButton 
-          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-          disabled={currentPage === 1}
+          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+          disabled={currentPage <= 1}
         >
           이전
         </PaginationButton>
         
-        <span>{currentPage} / {Math.ceil(totalFilteredReservations.length / listSize)}</span>
+        <span>
+          {currentPage || 1} / {totalPages || 1}
+        </span>
         
         <PaginationButton 
-          onClick={() => setCurrentPage(prev => 
-            Math.min(Math.ceil(totalFilteredReservations.length / listSize), prev + 1)
-          )}
-          disabled={currentPage >= Math.ceil(totalFilteredReservations.length / listSize)}
+          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage >= totalPages}
         >
           다음
         </PaginationButton>
       </PaginationButtons>
-
-      {/* 예약 수정 모달 */}
+      
       {isModalOpen && (
         <ReservationModal
           isEdit={!!selectedReservation}
