@@ -28,6 +28,7 @@ const RoomStatusModal = ({ room, onClose }) => {
   }, [room?.room_id, getCurrentReservation]);
 
   const statusOptions = [
+    { value: null, label: '공실' },
     { value: 'reservationComplete', label: '예약완료' },
     { value: 'cleaningRequested', label: '청소요청' },
     { value: 'cleaningInProgress', label: '청소중' },
@@ -39,11 +40,7 @@ const RoomStatusModal = ({ room, onClose }) => {
   ];
 
   const handleStatusClick = (status) => {
-    if (selectedStatus === status) {
-      setSelectedStatus(null);
-    } else {
-      setSelectedStatus(status);
-    }
+    setSelectedStatus(status);
   };
 
   const handleSaveChanges = async () => {
@@ -96,18 +93,14 @@ const RoomStatusModal = ({ room, onClose }) => {
           <StatusButtonGrid>
             {statusOptions.map(({ value, label }) => (
               <StatusButton
-                key={value}
+                key={label}
                 onClick={() => handleStatusClick(value)}
                 $selected={selectedStatus === value}
-                title={selectedStatus === value ? '클릭하면 공실로 변경됩니다' : label}
               >
                 {label}
               </StatusButton>
             ))}
           </StatusButtonGrid>
-          {selectedStatus === null && (
-            <StatusInfo>현재 상태: 공실</StatusInfo>
-          )}
         </StatusSection>
 
         <MemoSection>
@@ -215,25 +208,9 @@ const StatusButton = styled.button`
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
-  position: relative;
 
   &:hover {
     background-color: ${props => props.$selected ? '#0056b3' : '#e9ecef'};
-  }
-
-  &:hover::after {
-    content: attr(title);
-    position: absolute;
-    bottom: -30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    white-space: nowrap;
-    z-index: 1000;
   }
 `;
 
@@ -262,18 +239,6 @@ const MemoTextArea = styled.textarea`
   resize: vertical;
 `;
 
-const MemoSubmitButton = styled.button`
-  background-color: ${theme.colors.secondary};
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-
-  &:hover {
-    opacity: 0.9;
-  }
-`;
 
 const CloseButton = styled.button`
   background: none;
@@ -315,13 +280,6 @@ const ErrorMessage = styled.div`
   background-color: #fff3f3;
   border-radius: 4px;
   font-size: 14px;
-`;
-
-const StatusInfo = styled.div`
-  margin-top: 10px;
-  color: ${theme.colors.primary};
-  font-size: 14px;
-  text-align: center;
 `;
 
 export default React.memo(RoomStatusModal);
