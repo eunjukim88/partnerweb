@@ -12,12 +12,19 @@ import {
   PaginationButtons, 
   PaginationButton 
 } from '../common/FormComponents';
+import { BOOKING_SOURCES } from '../../constants/reservation';
 
 // 날짜 포맷팅 함수 추가
 const formatDateToKorean = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+// 예약 경로 한글 변환 함수 수정
+const getBookingSourceKorean = (source) => {
+  const bookingSource = BOOKING_SOURCES.find(item => item.value === source);
+  return bookingSource ? bookingSource.label : source;
 };
 
 const ReservationList = () => {
@@ -184,7 +191,7 @@ const ReservationList = () => {
                 <TableCell>{formatDateToKorean(reservation.check_out_date)}</TableCell>
                 <TableCell>{reservation.room_number}호</TableCell>
                 <TableCell>{reservation.stay_type}</TableCell>
-                <TableCell>{reservation.booking_source}</TableCell>
+                <TableCell>{getBookingSourceKorean(reservation.booking_source)}</TableCell>
                 <TableCell>{reservation.rate_amount?.toLocaleString()}원</TableCell>
                 <TableCell>
                   <ActionButtonGroup>
