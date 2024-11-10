@@ -176,7 +176,7 @@ const Container = styled.div`
     padding: 20px;
     max-width: 1200px;
     margin: 0 auto;
-    height: 650px;
+    height: 667px;
 `;
 
 const LeftSection = styled.div`
@@ -198,7 +198,6 @@ const RightSection = styled.div`
     flex: 1;
     display: flex;
     justify-content: center;
-    flow: hidden;
 `;
 
 const Balance = styled.div`
@@ -259,7 +258,7 @@ const ReceiverList = styled.div`
 `;
 
 const ReceiverListContent = styled.div`
-    height: 400px;
+    height: 350px;
     overflow-y: auto;
     background-color: #ffffff;
     border-radius: 10px;
@@ -280,7 +279,8 @@ const ReceiverItem = styled.div`
 `;
 
 const MessageArea = styled.textarea`
-    flex: 1;
+    height: 250px;
+    width: 100%;
     border: none;
     border-radius: 10px;
     padding: 15px;

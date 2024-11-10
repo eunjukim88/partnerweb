@@ -15,7 +15,6 @@ const MyPage = () => {
     { id: 'user-guide', name: '사용자 안내 설정' },
     { id: 'room-settings', name: '객실 설정' },
     { id: 'reservation-settings', name: '기본 예약 설정' },
-    { id: 'special-date-settings', name: '특정 예약 날짜 설정' },
   ];
 
   return (

@@ -334,30 +334,47 @@ const SectionTitle = styled.h3`
 const DayContainer = styled.div`
   display: flex;
   justify-content: space-between;
-  padding: 0 20px;
+  gap: 15px;
+  padding: 20px;
   margin: 10px 0;
 `;
 
 const DayButton = styled.button`
-  padding: 10px 15px;
-  border: 2px solid ${props => props.selected ? theme.colors.primary : '#ddd'};
-  border-radius: 4px;
-  background-color: ${props => props.selected ? theme.colors.primary : 'white'};
-  color: ${props => props.selected ? '#3395FF' : 'black'};
+  width: 45px;
+  height: 45px;
+  border: 1px solid ${props => props.selected ? theme.colors.primary : '#e0e0e0'};
+  border-radius: 8px;
+  background-color: ${props => {
+    if (!props.isEditing) return '#f5f5f5';
+    return props.selected ? theme.colors.primary : '#ffffff';
+  }};
+  color: ${props => {
+    if (!props.isEditing) return '#999';
+    return props.selected ? '#ffffff' : '#666';
+  }};
+  font-size: 15px;
+  font-weight: ${props => props.selected ? '600' : '400'};
   cursor: ${props => !props.isEditing ? 'not-allowed' : 'pointer'};
   opacity: ${props => !props.isEditing ? 0.7 : 1};
   transition: all 0.2s ease;
+  box-shadow: ${props => props.selected ? '0 2px 4px rgba(0, 0, 0, 0.1)' : 'none'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 
   &:hover {
-    background-color: ${props => 
-      props.isEditing 
-        ? (props.selected ? theme.colors.primaryDark : '#f5f5f5')
-        : props.selected ? theme.colors.primary : 'white'
-    };
+    background-color: ${props => {
+      if (!props.isEditing) return props.selected ? theme.colors.primary : '#f5f5f5';
+      return props.selected ? theme.colors.primaryDark : '#f8f8f8';
+    }};
+    transform: ${props => props.isEditing && 'translateY(-1px)'};
+    box-shadow: ${props => props.isEditing && '0 4px 6px rgba(0, 0, 0, 0.1)'};
   }
 
   &:active {
-    transform: ${props => props.isEditing && 'scale(0.98)'};
+    transform: ${props => props.isEditing && 'translateY(1px)'};
+    box-shadow: ${props => props.isEditing && '0 1px 2px rgba(0, 0, 0, 0.1)'};
   }
 `;
 

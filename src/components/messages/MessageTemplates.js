@@ -103,8 +103,11 @@ const Container = styled.div`
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 10px;
+    padding: 20px;
     box-sizing: border-box;
+    width: 100%;
+    max-width: 1800px;
+    margin: 0 auto;
 `;
 
 const Header = styled.div`
@@ -115,26 +118,48 @@ const Header = styled.div`
 
 const TemplateGrid = styled.div`
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(2, auto);
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 18px;
     overflow-y: auto;
-    justify-content: center;
-    max-width: 2250px; // (440px * 5) + (15px * 4) = 2250px
+    padding: 10px;
+    width: 100%;
+    max-width: 1800px;
     margin: 0 auto;
+
+    /* 최소 너비가 350px일 때 한 줄에 최대 5개까지만 표시 */
+    @media (min-width: 1800px) {
+        grid-template-columns: repeat(5, 1fr);
+    }
+
+    /* 화면이 작아질 때 자동으로 줄바꿈 */
+    @media (max-width: 1500px) {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    @media (max-width: 1200px) {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    @media (max-width: 900px) {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (max-width: 600px) {
+        grid-template-columns: 1fr;
+    }
 `;
 
 const TemplateCard = styled.div`
-    width: 350px;
-    height: 300px;
+    width: 100%;
+    min-height: 300px;
     border: 1px solid #ddd;
     border-radius: 10px;
     background-color: #f9f9f9;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     padding: 25px;
     box-sizing: border-box;
+    margin: 0 auto;
 `;
 
 const CardTitle = styled.h3`

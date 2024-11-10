@@ -7,7 +7,7 @@ const UserGuide = () => {
       <Icon>
         <FaTools size={50} />
       </Icon>
-      <Message>개발 중입니다.</Message>
+      <Message>번역 관련 논의 확인 후 개발 예정입니다.</Message>
     </Container>
   );
 };

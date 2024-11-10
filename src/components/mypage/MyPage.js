@@ -22,7 +22,6 @@ const RightSectionContent = () => {
     case 'reservation-settings':
       return <ReservationSettings />;
     case 'special-date-settings':
-      return <div>특정 예약 날짜 설정</div>;
     default:
       return <UserGuide />;
   }

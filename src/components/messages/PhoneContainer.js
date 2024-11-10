@@ -2,14 +2,16 @@ import React from 'react';
 import styled from 'styled-components';
 
 const PhoneContainerWrapper = styled.div`
-    width: 375px;
-    height: 725px;
-    border-radius: 30px;
-    overflow: hidden;
+    flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 20px;
     background-color: #f5f5f7;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    height: 667px;
+    max-width: 400px;
+    border-radius: 30px;
+    overflow: hidden;
 `;
 
 const PhoneScreen = styled.div`

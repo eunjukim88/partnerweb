@@ -7,6 +7,36 @@ const useRoomStore = create(persist(
     rooms: [],
     isLoading: false,
     error: null,
+    roomStatuses: {},
+
+    updateRoomStatus: (roomId, status) => {
+      set(state => ({
+        roomStatuses: {
+          ...state.roomStatuses,
+          [roomId]: {
+            ...state.roomStatuses[roomId],
+            status: status || 'vacant',
+            mainCard: status === 'vacant' ? Math.random() > 0.5 : state.roomStatuses[roomId]?.mainCard,
+            subCard: status === 'vacant' ? Math.random() > 0.5 : state.roomStatuses[roomId]?.subCard,
+            lastUpdated: new Date().toISOString()
+          }
+        }
+      }));
+    },
+
+    updateCardStatus: (roomId, mainCard, subCard) => {
+      set(state => ({
+        roomStatuses: {
+          ...state.roomStatuses,
+          [roomId]: {
+            ...state.roomStatuses[roomId],
+            mainCard,
+            subCard,
+            lastUpdated: new Date().toISOString()
+          }
+        }
+      }));
+    },
 
     fetchRooms: async () => {
       set({ isLoading: true, error: null });
@@ -22,8 +52,19 @@ const useRoomStore = create(persist(
           return isNaN(aNum) || isNaN(bNum) ? 0 : aNum - bNum;
         });
 
+        const initialStatuses = {};
+        sortedRooms.forEach(room => {
+          initialStatuses[room.room_id] = {
+            status: room.room_status || 'vacant',
+            mainCard: Math.random() > 0.5,
+            subCard: Math.random() > 0.5,
+            lastUpdated: new Date().toISOString()
+          };
+        });
+
         set({ 
-          rooms: sortedRooms, 
+          rooms: sortedRooms,
+          roomStatuses: initialStatuses,
           isLoading: false 
         });
       } catch (error) {
@@ -85,7 +126,17 @@ const useRoomStore = create(persist(
       }
     },
 
-    clearError: () => set({ error: null })
+    clearError: () => set({ error: null }),
+
+    getRoomStatus: (roomId) => {
+      const state = get();
+      return state.roomStatuses[roomId] || {
+        status: 'vacant',
+        mainCard: true,
+        subCard: true,
+        lastUpdated: new Date().toISOString()
+      };
+    }
   }),
   {
     name: 'room-storage',

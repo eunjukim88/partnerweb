@@ -42,12 +42,19 @@ const RoomNumberDisplay = ({ building, floor, number, name, type, display }) => 
   );
 };
 
-const RoomCard = ({ room }) => {
+const RoomCard = ({ room, onLoadComplete }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [mainCard, setMainCard] = useState(generateRandomCardStatus());
   const [subCard, setSubCard] = useState(generateRandomCardStatus());
-  const [roomStatus, setRoomStatus] = useState(room?.room_status || null);
+  
+  // settings store에서 설정 가져오기
   const { settings } = useReservationSettingsStore();
+  
+  const { 
+    updateRoomStatus,
+    getRoomStatus
+  } = useRoomStore();
+
   const { 
     getRoomReservationStatus, 
     getCurrentReservation,
@@ -57,22 +64,23 @@ const RoomCard = ({ room }) => {
     selectedReservation,
     setSelectedReservation 
   } = useReservationStore();
+
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
 
   // 객실 상태 초기화 및 업데이트
   useEffect(() => {
     if (!room || !reservations) return;
 
-    const initializeRoomStatus = () => {
-      setIsLoading(true);
+    const initializeRoomStatus = async () => {
       try {
         const status = getRoomReservationStatus(room.room_id);
-        setRoomStatus(status);
+        await updateRoomStatus(room.room_id, status);
       } catch (error) {
         console.error('객실 상태 초기화 실패:', error);
-        setRoomStatus('vacant');
+        await updateRoomStatus(room.room_id, 'vacant');
       } finally {
         setIsLoading(false);
+        onLoadComplete?.(); // 로딩 완료 콜백 호출
       }
     };
 
@@ -81,7 +89,10 @@ const RoomCard = ({ room }) => {
     // 1분마다 상태 업데이트
     const interval = setInterval(initializeRoomStatus, 60000);
     return () => clearInterval(interval);
-  }, [room?.room_id, reservations, getRoomReservationStatus]);
+  }, [room?.room_id, reservations, getRoomReservationStatus, onLoadComplete]);
+
+  // 현재 객실 상태 가져오기
+  const roomStatus = getRoomStatus(room?.room_id);
 
   // 현재 예약 정보 가져오기
   const currentReservation = useMemo(() => {
@@ -93,10 +104,13 @@ const RoomCard = ({ room }) => {
   useEffect(() => {
     let intervalId;
     
-    if (roomStatus === 'vacant') {
+    if (roomStatus.status === 'vacant') {
       intervalId = setInterval(() => {
-        setMainCard(generateRandomCardStatus());
-        setSubCard(generateRandomCardStatus());
+        updateRoomStatus(
+          room.room_id,
+          Math.random() > 0.5,
+          Math.random() > 0.5
+        );
       }, 30000);
     }
 
@@ -105,7 +119,7 @@ const RoomCard = ({ room }) => {
         clearInterval(intervalId);
       }
     };
-  }, [roomStatus]);
+  }, [room?.room_id, roomStatus.status]);
 
   if (isLoading) {
     return (
@@ -178,7 +192,7 @@ const RoomCard = ({ room }) => {
 
   // 예약 시간 정보 표시 수정
   const getReservationTimes = () => {
-    if (!currentReservation || roomStatus === 'vacant') return null;
+    if (!currentReservation || roomStatus.status === 'vacant') return null;
 
     const stayTypeSettings = settings[currentReservation.stay_type];
     if (!stayTypeSettings) return null;
@@ -187,7 +201,7 @@ const RoomCard = ({ room }) => {
     const delayStatus = checkDelayStatus(
       currentReservation.check_in_time, 
       currentReservation.check_out_time, 
-      roomStatus
+      roomStatus.status
     );
 
     return (
@@ -218,7 +232,7 @@ const RoomCard = ({ room }) => {
       });
 
       if (response.status === 200) {
-        setRoomStatus(newStatus);
+        updateRoomStatus(room.room_id, newStatus);
         
         // 공실로 변경 시 예약 정보 초기화
         if (newStatus === 'vacant') {
@@ -258,7 +272,7 @@ const RoomCard = ({ room }) => {
   return (
     <>
       <CardContainer 
-        status={roomStatus} 
+        status={roomStatus.status} 
         onClick={handleCardClick}
       >
         <RoomHeader>
@@ -281,7 +295,7 @@ const RoomCard = ({ room }) => {
         </RoomHeader>
         <StatusSection>
           <RoomStatus>
-            {getStatusText(roomStatus)}
+            {getStatusText(roomStatus.status)}
           </RoomStatus>
         </StatusSection>
         {getReservationTimes()}

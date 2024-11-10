@@ -1,114 +1,42 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { IoIosWarning } from "react-icons/io";
+import { FaEdit } from "react-icons/fa";
 import WifiIcon from '../WifiIcon';
 import theme from '../../styles/theme';
 import { MdCreditCard, MdCreditCardOff } from "react-icons/md";
-import ReservationModal from '../reservations/ReservationModal';
+import useRoomStore from '../../store/roomStore';
+import RoomStatusModal from './RoomStatusModal';
 
-const RoomList = ({ rooms, onEditRoom }) => {
-  const [selectedReservation, setSelectedReservation] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const getCheckInStatus = (room) => {
-    const activeStatuses = ['longStay', 'overnightStay', 'hourlyStay', 'reservationComplete', 'cleaningRequested'];
-    if (activeStatuses.includes(room.status)) {
-      if (room.checkInStatus) {
-        if (room.delay) {
-          return (
-            <>
-              체크인 | <DelayText>{formatDelayTime(room.delay)} 지연</DelayText>
-            </>
-          );
-        }
-        return `체크인 | ${room.checkInStatus}`;
-      } else if (room.checkOutStatus) {
-        if (room.delay) {
-          return (
-            <>
-              체크아웃 | <DelayText>{formatDelayTime(room.delay)} 지연</DelayText>
-            </>
-          );
-        }
-        return '체크아웃';
-      }
-    }
-    return null;
-  };
-
-  const formatDelayTime = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-  };
+const RoomList = ({ rooms }) => {
+  const { getRoomStatus } = useRoomStore();
+  const [selectedRoom, setSelectedRoom] = useState(null);
 
   const getStatusText = (status) => {
     const statusMap = {
       longStay: '장기',
       overnightStay: '숙박',
-      salesStopped: '판매중지',
-      cleaningComplete: '청소완료',
-      underInspection: '점검중',
-      inspectionComplete: '점검완료',
-      cleaningRequested: '청소요청',
       hourlyStay: '대실',
-      cleaningInProgress: '청소중',
       vacant: '공실',
       reservationComplete: '예약완료',
-      inspectionRequested: '점검요청'
+      cleaningRequested: '청소요청',
+      cleaningInProgress: '청소중',
+      cleaningComplete: '청소완료',
+      inspectionRequested: '점검요청',
+      underInspection: '점검중',
+      inspectionComplete: '점검완료',
+      salesStopped: '판매중지'
     };
     return statusMap[status] || status;
   };
 
-  const getStatusColor = (status) => {
-    const statusColors = {
-      longStay: theme.colors.longStay,
-      overnightStay: theme.colors.overnightStay,
-      salesStopped: theme.colors.salesStopped,
-      cleaningComplete: theme.colors.cleaningComplete,
-      underInspection: theme.colors.underInspection,
-      inspectionComplete: theme.colors.inspectionComplete,
-      cleaningRequested: theme.colors.cleaningRequested,
-      hourlyStay: theme.colors.hourlyStay,
-      cleaningInProgress: theme.colors.cleaningInProgress,
-      vacant: theme.colors.vacant,
-      reservationComplete: theme.colors.reservationComplete,
-      inspectionRequested: theme.colors.inspectionRequested
-    };
-    return statusColors[status] || theme.colors.default;
+  const formatTime = (time) => {
+    if (!time) return '';
+    return time.slice(0, 5);
   };
 
-  const getStatusTextColor = (status) => {
-    const blackTextStatuses = ['underInspection', 'inspectionRequested'];
-    return blackTextStatuses.includes(status) ? 'black' : 'white';
-  };
-
-  const handleEditReservation = (room) => {
-    setSelectedReservation({
-      reservation_id: room.reservation_id,
-      reservation_number: room.reservation_number,
-      guest_name: room.guest_name,
-      phone: room.phone,
-      booking_source: room.booking_source,
-      stay_type: room.stay_type,
-      check_in_date: room.check_in_date,
-      check_out_date: room.check_out_date,
-      check_in_time: room.check_in_time,
-      check_out_time: room.check_out_time,
-      room_id: room.room_id,
-      rate_amount: room.rate_amount,
-      memo: room.memo
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedReservation(null);
-  };
-
-  const handleSaveReservation = async () => {
-    handleCloseModal();
+  const handleEditClick = (room) => {
+    setSelectedRoom(room);
   };
 
   return (
@@ -116,71 +44,86 @@ const RoomList = ({ rooms, onEditRoom }) => {
       <Table>
         <thead>
           <tr>
-            <Th>예약 객실</Th>
-            <Th>객실 이름</Th>
-            <Th>체크인 상태</Th>
-            <Th>예약 시간</Th>
-            <Th>네트워크 상태</Th>
-            <Th>카드키 상태</Th>
+            <Th>객실 정보</Th>
             <Th>객실 상태</Th>
-            <Th>관리자 메모</Th>
-            <Th>수정</Th>
+            <Th>예약 시간</Th>
+            <Th>WiFi</Th>
+            <Th>카드키</Th>
+            <Th>메모</Th>
+            <Th>관리</Th>
           </tr>
         </thead>
         <tbody>
-          {rooms.map((room) => (
-            <tr key={room.id}>
-              <Td>{room.name}</Td>
-              <Td>{getCheckInStatus(room)}</Td>
-              <Td>{room.checkIn} | {room.checkOut}</Td>
-              <Td><WifiIcon strength={room.wifiStrength} /></Td>
-              <Td>
-                    {!room.mainCard && !room.subCard ? (
-                        <AlertIcon>
-                        <IoIosWarning size={20} color="#FF0000" />
-                        </AlertIcon>
-                    ) : (
-                        <CardIconsContainer>
-                        <CardIconWrapper>
-                            <CardLabel>M</CardLabel>
-                            <CardIcon active={room.mainCard}>
-                            {room.mainCard ? <MdCreditCard /> : <MdCreditCardOff />}
-                            </CardIcon>
-                        </CardIconWrapper>
-                        <CardIconWrapper>
-                            <CardLabel>S</CardLabel>
-                            <CardIcon active={room.subCard}>
-                            {room.subCard ? <MdCreditCard /> : <MdCreditCardOff />}
-                            </CardIcon>
-                        </CardIconWrapper>
-                        </CardIconsContainer>
-                    )}
-                    </Td>
-              <Td>
-                <StatusBadge 
-                  color={getStatusColor(room.status)}
-                  textColor={getStatusTextColor(room.status)}
-                >
-                  {getStatusText(room.status)}
-                </StatusBadge>
-              </Td>
-              <Td>{room.memo}</Td>
-              <Td>
-                <EditButton onClick={() => handleEditReservation(room)}>
-                  수정
-                </EditButton>
-              </Td>
-            </tr>
-          ))}
+          {rooms.map((room) => {
+            const currentReservation = room.currentReservation;
+            const needsCardAlert = !room.mainCard && !room.subCard;
+            const roomStatus = getRoomStatus(room.room_id);
+
+            return (
+              <tr key={room.room_id}>
+                <Td>
+                  <RoomInfo>
+                    {room.show_building && room.room_building && `${room.room_building} `}
+                    {room.show_floor && room.room_floor && `${room.room_floor}층 `}
+                    {room.room_number}호
+                    {room.show_name && room.room_name && ` (${room.room_name})`}
+                    {room.show_type && room.room_type && ` [${room.room_type}]`}
+                  </RoomInfo>
+                </Td>
+                <Td>
+                  <StatusBadge 
+                    color={theme.colors[roomStatus.status] || theme.colors.vacant}
+                    textColor={['underInspection', 'inspectionRequested'].includes(roomStatus.status) ? 'black' : 'white'}
+                  >
+                    {getStatusText(roomStatus.status)}
+                  </StatusBadge>
+                </Td>
+                <Td>
+                  {currentReservation && (
+                    `${formatTime(currentReservation.check_in_time)} ~ ${formatTime(currentReservation.check_out_time)}`
+                  )}
+                </Td>
+                <Td>
+                  <WifiIcon />
+                </Td>
+                <Td>
+                  {needsCardAlert ? (
+                    <AlertIcon>
+                      <IoIosWarning size={20} color="#FF0000" />
+                    </AlertIcon>
+                  ) : (
+                    <CardIconsContainer>
+                      <CardIconWrapper>
+                        <CardLabel>M</CardLabel>
+                        <CardIcon active={roomStatus.mainCard}>
+                          {roomStatus.mainCard ? <MdCreditCard /> : <MdCreditCardOff />}
+                        </CardIcon>
+                      </CardIconWrapper>
+                      <CardIconWrapper>
+                        <CardLabel>S</CardLabel>
+                        <CardIcon active={roomStatus.subCard}>
+                          {roomStatus.subCard ? <MdCreditCard /> : <MdCreditCardOff />}
+                        </CardIcon>
+                      </CardIconWrapper>
+                    </CardIconsContainer>
+                  )}
+                </Td>
+                <Td>{room.memo}</Td>
+                <Td>
+                  <EditButton onClick={() => handleEditClick(room)}>
+                    <FaEdit /> 수정
+                  </EditButton>
+                </Td>
+              </tr>
+            );
+          })}
         </tbody>
       </Table>
 
-      {isModalOpen && (
-        <ReservationModal
-          isEdit={true}
-          initialData={selectedReservation}
-          onClose={handleCloseModal}
-          onSave={handleSaveReservation}
+      {selectedRoom && (
+        <RoomStatusModal
+          room={selectedRoom}
+          onClose={() => setSelectedRoom(null)}
         />
       )}
     </TableContainer>
@@ -227,22 +170,9 @@ const AlertIcon = styled.div`
   align-items: center;
 `;
 
-const EditButton = styled.button`
-  background-color: #4CAF50;
-  border: none;
-  color: white;
-  padding: 5px 10px;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
+const RoomInfo = styled.span`
+  color: #333333;
   font-size: 14px;
-  margin: 2px 2px;
-  cursor: pointer;
-  border-radius: 3px;
-`;
-
-const DelayText = styled.span`
-  color: #FF6B6B;
   font-weight: bold;
 `;
 
@@ -272,6 +202,28 @@ const CardIcon = styled.div`
   color: ${props => props.active ? '#333333' : '#FFFFFF'};
   font-size: 20px;
 transform: rotate(90deg);
+`;
+
+const EditButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background-color: ${theme.colors.primary};
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  svg {
+    font-size: 16px;
+  }
 `;
 
 export default RoomList;

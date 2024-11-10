@@ -11,7 +11,7 @@ const RoomStatusModal = ({ room, onClose }) => {
   const [selectedStatus, setSelectedStatus] = useState(room?.room_status || null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { updateRoom } = useRoomStore();
+  const { updateRoom, fetchRooms } = useRoomStore();
   const { 
     getCurrentReservation,
     setSelectedReservation,
@@ -39,7 +39,11 @@ const RoomStatusModal = ({ room, onClose }) => {
   ];
 
   const handleStatusClick = (status) => {
-    setSelectedStatus(status);
+    if (selectedStatus === status) {
+      setSelectedStatus(null);
+    } else {
+      setSelectedStatus(status);
+    }
   };
 
   const handleSaveChanges = async () => {
@@ -55,25 +59,17 @@ const RoomStatusModal = ({ room, onClose }) => {
         memo: memo
       });
       
+      await Promise.all([
+        fetchRooms(),
+        fetchReservations()
+      ]);
+      
       onClose();
     } catch (error) {
       setError(error.message || '변경사항 저장에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // 예 모달 열기 핸들러
-  const handleReservationClick = () => {
-    if (currentReservation) {
-      // 수정의 경우 현재 예약 정보 설정
-      setSelectedReservation(currentReservation);
-    } else {
-      // 신규 등록의 경우 선택된 객실 ID만 설정
-      setSelectedReservation({ room_id: room.room_id });
-    }
-    setReservationModalOpen(true);  // 예약 모달 열기
-    onClose();  // 상태 모달 닫기
   };
 
   return (
@@ -103,11 +99,15 @@ const RoomStatusModal = ({ room, onClose }) => {
                 key={value}
                 onClick={() => handleStatusClick(value)}
                 $selected={selectedStatus === value}
+                title={selectedStatus === value ? '클릭하면 공실로 변경됩니다' : label}
               >
                 {label}
               </StatusButton>
             ))}
           </StatusButtonGrid>
+          {selectedStatus === null && (
+            <StatusInfo>현재 상태: 공실</StatusInfo>
+          )}
         </StatusSection>
 
         <MemoSection>
@@ -215,9 +215,25 @@ const StatusButton = styled.button`
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
 
   &:hover {
     background-color: ${props => props.$selected ? '#0056b3' : '#e9ecef'};
+  }
+
+  &:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
   }
 `;
 
@@ -299,6 +315,13 @@ const ErrorMessage = styled.div`
   background-color: #fff3f3;
   border-radius: 4px;
   font-size: 14px;
+`;
+
+const StatusInfo = styled.div`
+  margin-top: 10px;
+  color: ${theme.colors.primary};
+  font-size: 14px;
+  text-align: center;
 `;
 
 export default React.memo(RoomStatusModal);
