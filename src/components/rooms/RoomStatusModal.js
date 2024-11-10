@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
 import { FaTimes } from 'react-icons/fa';
 import theme from '../../styles/theme';
@@ -12,13 +12,14 @@ const RoomStatusModal = ({ room, onClose }) => {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const { updateRoom, fetchRooms } = useRoomStore();
+  
+  // store에서 필요한 것들을 한번에 가져오기
   const { 
     getCurrentReservation,
     setSelectedReservation,
     setModalOpen,
-    selectedReservation,
-    fetchReservations,
-    isModalOpen 
+    isModalOpen,
+    fetchReservations
   } = useReservationStore();
 
   // 현재 예약 정보 가져오기
@@ -26,6 +27,20 @@ const RoomStatusModal = ({ room, onClose }) => {
     if (!room?.room_id) return null;
     return getCurrentReservation(room.room_id);
   }, [room?.room_id, getCurrentReservation]);
+
+  // 예약 버튼 클릭 핸들러 단순화
+  const handleReservationClick = useCallback(() => {
+    // 현재 예약이 있으면 그 정보를 사용하고, 없으면 객실 정보만 포함
+    const reservationData = currentReservation 
+      ? currentReservation 
+      : {
+          room_id: room.room_id,
+          room_number: room.room_number
+        };
+    
+    setSelectedReservation(reservationData);
+    setModalOpen(true);
+  }, [currentReservation, room, setSelectedReservation, setModalOpen]);
 
   const statusOptions = [
     { value: null, label: '공실' },
@@ -80,10 +95,7 @@ const RoomStatusModal = ({ room, onClose }) => {
         </ModalHeader>
 
         <ButtonSection>
-        <ActionButton onClick={() => {
-                      setSelectedReservation(currentReservation);
-                      setModalOpen(true);
-            }}>     
+          <ActionButton onClick={handleReservationClick}>     
             {currentReservation ? '예약 변경' : '예약 등록'}
           </ActionButton>
         </ButtonSection>
@@ -131,8 +143,12 @@ const RoomStatusModal = ({ room, onClose }) => {
 
       {isModalOpen && (
         <ReservationModal
-          isEdit={!!selectedReservation}
-          initialData={selectedReservation}
+          isEdit={!!currentReservation}
+          initialData={{
+            room_id: room.room_id,
+            room_number: room.room_number,
+            ...(currentReservation || {})
+          }}
           onClose={() => {
             setModalOpen(false);
             setSelectedReservation(null);

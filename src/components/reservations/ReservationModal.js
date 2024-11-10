@@ -33,6 +33,7 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
     updateReservation, 
     getAvailableRooms,
     calculateRate,
+    dateUtils
   } = useReservationStore();
   
   const { settings } = useReservationSettingsStore();
@@ -297,12 +298,23 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
               >
                 <option value="">선택해주세요</option>
                 {availableRooms
-                  .sort((a, b) => a.room_id - b.room_id) // room_id 기준으로 정렬
-                  .map(room => (
-                    <option key={room.room_id} value={room.room_id}>
-                      {formatRoomLabel(room)}
-                    </option>
-                ))}
+                  .sort((a, b) => a.room_id - b.room_id)
+                  .map(room => {
+                    // 현재 선택된 객실이거나 초기 데이터의 객실인 경우 selected 속성 추가
+                    const isSelected = room.room_id === formData.room_id;
+                    const isInitialRoom = room.room_id === initialData?.room_id;
+                    
+                    return (
+                      <option 
+                        key={room.room_id} 
+                        value={room.room_id}
+                        selected={isSelected || isInitialRoom}
+                      >
+                        {formatRoomLabel(room)}
+                        {(isSelected || isInitialRoom) ? ' (현재 선택)' : ''}
+                      </option>
+                    );
+                  })}
               </Select>
             </FormGroup>
             {formData.room_id && (
@@ -351,8 +363,8 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
     try {
       const formattedData = {
         ...formData,
-        check_in_date: dateUtils.formatDate(formData.check_in_date),
-        check_out_date: dateUtils.formatDate(formData.check_out_date),
+        check_in_date: formData.check_in_date,
+        check_out_date: formData.check_out_date,
         check_in_time: formData.check_in_time || null,
         check_out_time: formData.check_out_time || null,
         rate_amount: parseInt(formData.rate_amount) || 0

@@ -55,23 +55,26 @@ const ReservationList = () => {
 
   // 초기 데이터 로딩 및 날짜 설정
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    setStartDate(today);
-    setEndDate(today);
-    handleSearch();
+    const loadInitialData = async () => {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        setStartDate(today);
+        setEndDate(today);
+        await fetchReservations();
+      } catch (error) {
+        console.error('초기 데이터 로딩 실패:', error);
+      }
+    };
+
+    loadInitialData();
   }, []);
 
-  // 검색 핸들러 수정
-  const handleSearch = async () => {
-    try {
-      setCurrentPage(1);
-      await fetchReservations();
-    } catch (error) {
-      console.error('검색 오류:', error);
-    }
-  };
+  // 검색 조건이 변경될 때마다 데이터 다시 로딩
+  useEffect(() => {
+    fetchReservations();
+  }, [startDate, endDate, searchTerm, searchType]);
 
   // QuickDateButtons 클릭 시 endDate만 변경
   const handleQuickDate = (days) => {
@@ -80,7 +83,6 @@ const ReservationList = () => {
     newEndDate.setHours(0, 0, 0, 0);
     
     setEndDate(newEndDate);
-    handleSearch();
   };
 
   // 날짜 직접 선택 핸들러
@@ -88,14 +90,12 @@ const ReservationList = () => {
     const newDate = value ? new Date(value) : null;
     if (newDate) {
       newDate.setHours(0, 0, 0, 0);
+      if (type === 'start') {
+        setStartDate(newDate);
+      } else {
+        setEndDate(newDate);
+      }
     }
-    
-    if (type === 'start') {
-      setStartDate(newDate);
-    } else {
-      setEndDate(newDate);
-    }
-    handleSearch();
   };
 
   // 실시간 검색 처리
@@ -108,9 +108,13 @@ const ReservationList = () => {
     setSearchType(e.target.value);
   };
 
-  // 페이지네이션 계산 - null 체크 추가
+  // 페이지네이션 관련 계산
+  const itemsPerPage = 10;
   const totalItems = filteredReservations?.length || 0;
-  const totalPages = Math.max(1, Math.ceil(totalItems / (listSize || 10))); // listSize 0이면 기본값 10 사용
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPageData = filteredReservations?.slice(startIndex, endIndex) || [];
 
   if (isLoading) return <LoadingSpinner>로딩 중...</LoadingSpinner>;
   if (error) return <ErrorMessage>{error}</ErrorMessage>;
@@ -122,13 +126,13 @@ const ReservationList = () => {
           <DateRangeContainer>
             <Input
               type="date"
-              value={formatDateToKorean(startDate)}
+              value={startDate ? formatDateToKorean(startDate) : ''}
               onChange={(e) => handleDateChange('start', e.target.value)}
             />
             <span>~</span>
             <Input
               type="date"
-              value={formatDateToKorean(endDate)}
+              value={endDate ? formatDateToKorean(endDate) : ''}
               onChange={(e) => handleDateChange('end', e.target.value)}
             />
           </DateRangeContainer>
@@ -174,15 +178,15 @@ const ReservationList = () => {
             <TableHeader>체크인</TableHeader>
             <TableHeader>체크아웃</TableHeader>
             <TableHeader>객실</TableHeader>
-            <TableHeader>예약타입</TableHeader>
+            <TableHeader>숙박유형</TableHeader>
             <TableHeader>예약경로</TableHeader>
             <TableHeader>요금</TableHeader>
             <TableHeader>관리</TableHeader>
           </tr>
         </thead>
         <tbody>
-          {filteredReservations && filteredReservations.length > 0 ? (
-            filteredReservations.map(reservation => (
+          {currentPageData.length > 0 ? (
+            currentPageData.map(reservation => (
               <TableRow key={reservation.reservation_id}>
                 <TableCell>{reservation.reservation_number}</TableCell>
                 <TableCell>{reservation.guest_name}</TableCell>
@@ -218,25 +222,48 @@ const ReservationList = () => {
         </tbody>
       </ReservationTable>
       
-      <PaginationButtons>
-        <PaginationButton 
-          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-          disabled={currentPage <= 1}
-        >
-          이전
-        </PaginationButton>
-        
-        <span>
-          {currentPage || 1} / {totalPages || 1}
-        </span>
-        
-        <PaginationButton 
-          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-          disabled={currentPage >= totalPages}
-        >
-          다음
-        </PaginationButton>
-      </PaginationButtons>
+      {totalItems > 0 && (
+        <PaginationContainer>
+          <PaginationInfo>
+            전체 {totalItems}건 중 {startIndex + 1}-{Math.min(endIndex, totalItems)}건
+          </PaginationInfo>
+          <PaginationButtons>
+            <PaginationButton 
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              {'<<'}
+            </PaginationButton>
+            <PaginationButton 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              이전
+            </PaginationButton>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+              <PageNumber
+                key={pageNum}
+                onClick={() => setCurrentPage(pageNum)}
+                $active={currentPage === pageNum}
+              >
+                {pageNum}
+              </PageNumber>
+            ))}
+            <PaginationButton 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              다음
+            </PaginationButton>
+            <PaginationButton 
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              {'>>'}
+            </PaginationButton>
+          </PaginationButtons>
+        </PaginationContainer>
+      )}
       
       {isModalOpen && (
         <ReservationModal
@@ -341,6 +368,39 @@ const TableRow = styled.tr`
   
   &:hover {
     background-color: #f5f5f5;
+  }
+`;
+
+const PaginationContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+`;
+
+const PaginationInfo = styled.div`
+  color: #666;
+  font-size: 0.9em;
+`;
+
+const PageNumbers = styled.div`
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin: 0 10px;
+`;
+
+const PageNumber = styled.button`
+  padding: 5px 10px;
+  border: 1px solid ${props => props.$active ? '#007bff' : '#dee2e6'};
+  background-color: ${props => props.$active ? '#007bff' : 'white'};
+  color: ${props => props.$active ? 'white' : '#333'};
+  cursor: pointer;
+  border-radius: 4px;
+
+  &:hover {
+    background-color: ${props => props.$active ? '#0056b3' : '#e9ecef'};
   }
 `;
 

@@ -256,18 +256,27 @@ async function handleDeleteReservation(req, res) {
   try {
     const { reservation_id } = req.query;
 
+    if (!reservation_id) {
+      return res.status(400).json({ error: 'reservation_id가 필요합니다.' });
+    }
+
+    console.log('삭제할 예약 ID:', reservation_id);
+
     const { rowCount } = await sql`
       DELETE FROM reservations
       WHERE reservation_id = ${reservation_id}
     `;
 
     if (rowCount === 0) {
-      return res.status(404).json({ error: '예약을 찾을 수 없습니다' });
+      return res.status(404).json({ message: '예약을 찾을 수 없습니다' });
     }
 
     res.status(200).json({ message: '예약이 삭제되었습니다' });
   } catch (error) {
     console.error('예약 삭제 실패:', error);
-    res.status(500).json({ error: '예약 삭제 실패' });
+    res.status(500).json({ 
+      error: '예약 삭제 실패',
+      message: error.message 
+    });
   }
 } 

@@ -422,7 +422,7 @@ const useReservationStore = create(
             const settings = settingsStore.settings;
             
             if (!settings || !settings[data.stay_type]) {
-              throw new Error('예약 ��정을 불러올 수 없습니다.');
+              throw new Error('예약 정을 불러올 수 없습니다.');
             }
 
             // 예약번호 중복 검사
@@ -459,13 +459,20 @@ const useReservationStore = create(
 
         // 예약 조회
         fetchReservations: async () => {
-          set({ isLoading: true, error: null });
+          set({ isLoading: true });
           try {
             const response = await axios.get('/api/reservations/reservations');
-            set({ reservations: response.data, isLoading: false });
-          } catch (error) {
+            const reservations = response.data;
+            
             set({ 
-              error: error.response?.data?.message || '예약 조회 실패',
+              reservations,
+              filteredReservations: reservations,
+              isLoading: false 
+            });
+          } catch (error) {
+            console.error('예약 조회 실패:', error);
+            set({ 
+              error: '예약 조회에 실패했습니다.',
               isLoading: false 
             });
           }
@@ -557,16 +564,33 @@ const useReservationStore = create(
 
         // 예약 삭제
         deleteReservation: async (reservation_id) => {
+          if (!window.confirm('예약을 삭제하시겠습니까?')) {
+            return;
+          }
+
           set({ isLoading: true });
           try {
-            await axios.delete(`/api/reservations/reservations?reservation_id=${reservation_id}`);
-            set(state => ({
-              reservations: state.reservations.filter(r => r.reservation_id !== reservation_id),
-              isLoading: false
-            }));
+            const response = await axios.delete(`/api/reservations/reservations`, {
+              params: { reservation_id }
+            });
+
+            if (response.status === 200) {
+              await get().fetchReservations();
+              
+              set(state => ({
+                filteredReservations: state.reservations,
+                isLoading: false
+              }));
+              
+              alert('예약이 삭제되었습니다.');
+            }
           } catch (error) {
-            set({ error: error.message, isLoading: false });
-            throw error;
+            console.error('예약 삭제 실패:', error);
+            set({ 
+              error: '예약 삭제에 실패했습니다.',
+              isLoading: false 
+            });
+            alert(error.response?.data?.message || '예약 삭제에 실패했습니다.');
           }
         },
 
@@ -672,7 +696,6 @@ const useReservationStore = create(
             currentPage: 1
           });
           
-          // 검색어가 있으면 새로운 타입으로 재검색
           if (state.searchTerm) {
             state.setSearchTerm(state.searchTerm);
           }
@@ -752,6 +775,17 @@ const useReservationStore = create(
             console.error('예약 검증 실패:', error);
             throw error;
           }
+        },
+
+        // dateUtils를 store의 상태로 추가
+        dateUtils: {
+          formatDate: dateUtils.formatDate,
+          getKSTDate: dateUtils.getKSTDate,
+          startOfDay: dateUtils.startOfDay,
+          endOfDay: dateUtils.endOfDay,
+          parseDate: dateUtils.parseDate,
+          startOfDayKST: dateUtils.startOfDayKST,
+          endOfDayKST: dateUtils.endOfDayKST
         },
       };
     },
