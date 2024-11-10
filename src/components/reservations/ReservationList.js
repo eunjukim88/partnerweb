@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import useReservationDisplayStore from '../../store/reservationDisplayStore';
 import { FaSearch, FaEdit, FaTrash, FaRedo } from 'react-icons/fa';
 import ReservationModal from './ReservationModal';
+import useReservationStore from '../../store/reservationStore';
 import { 
   Button, 
   Select, 
@@ -53,7 +53,7 @@ const ReservationList = () => {
     handleSearch,
     handleQuickDate,
     resetFilters
-  } = useReservationDisplayStore();
+  } = useReservationStore();
 
   // 초기 데이터 로드
   useEffect(() => {

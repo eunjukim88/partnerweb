@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { FaTimes } from 'react-icons/fa';
 import theme from '../../styles/theme';
-import useReservationDisplayStore from '../../store/reservationDisplayStore';
 import useRoomStore from '../../store/roomStore';
+import useReservationStore from '../../store/reservationStore';
 
 const RoomStatusModal = ({ room, onClose }) => {
   const [memo, setMemo] = useState(room?.memo || '');
@@ -11,7 +11,7 @@ const RoomStatusModal = ({ room, onClose }) => {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const { updateRoom } = useRoomStore();
-  const { filteredReservations, setSelectedReservation, setModalOpen: setReservationModalOpen } = useReservationDisplayStore();
+  const { filteredReservations, setSelectedReservation, setModalOpen: setReservationModalOpen } = useReservationStore();
 
   // 현재 객실의 예약 정보 찾기
   const currentReservation = filteredReservations.find(reservation => 

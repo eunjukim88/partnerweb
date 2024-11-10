@@ -1,103 +1,102 @@
 "use client";
+
+// 1. 임포트 영역
 import React, { useState, useEffect, useMemo } from 'react';
 import { FaThLarge, FaList, FaFilter, FaChevronDown } from 'react-icons/fa';
 import styled from 'styled-components';
+import { useRouter } from 'next/router';
 import RoomCard from '../../src/components/rooms/RoomCard';
 import RoomList from '../../src/components/rooms/RoomList';
-import theme from '../../src/styles/theme';
 import RootLayout from '../../src/core/App';
-import { useRouter } from 'next/router';
-import useReservationDisplayStore from '../../src/store/reservationDisplayStore';
+import theme from '../../src/styles/theme';
 import useRoomStore from '../../src/store/roomStore';
+import useReservationStore from '../../src/store/reservationStore';
 
+// 2. 메인 컴포넌트
 const RoomsPage = () => {
-    const [currentTime, setCurrentTime] = useState(new Date());
-    const [viewMode, setViewMode] = useState('card');
-    const [loading, setLoading] = useState(true);
-    const router = useRouter();
+  // 상태 관리
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [viewMode, setViewMode] = useState('card');
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-    const { rooms, fetchRooms } = useRoomStore();
-    const { 
-      filteredReservations,
-      fetchReservations, 
-      isLoading,
-      error,
-      getRoomReservationStatus,
-      getRoomReservationTimes,
-      bookingSource,
-      stayType
-    } = useReservationDisplayStore();
-  
-    useEffect(() => {
-      const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-      return () => clearInterval(timer);
-    }, []);
-  
-    useEffect(() => {
-      const loadData = async () => {
-        try {
-          await Promise.all([fetchRooms(), fetchReservations()]);
-          setLoading(false);
-        } catch (error) {
-          console.error('Error loading data:', error);
-          setLoading(false);
-        }
-      };
+  // Store에서 필요한 데이터와 함수들
+  const { rooms, fetchRooms } = useRoomStore();
+  const { 
+    filteredReservations,
+    fetchReservations, 
+    isLoading,
+    error,
+    getRoomReservationStatus,
+    getRoomReservationTimes,
+    bookingSource,
+    stayType,
+    getCurrentReservation,
+    getStayTypeCount,
+    getRoomsByStayType
+  } = useReservationStore();
 
-      loadData();
-    }, [fetchRooms, fetchReservations]);
-  
-    const filteredRooms = useMemo(() => {
-      return rooms.map(room => {
-        const status = getRoomReservationStatus(room.room_id);
-        const times = getRoomReservationTimes(room.room_id);
-        
-        return {
-          ...room,
-          status,
-          reservationTimes: times,
-          currentReservation: filteredReservations.find(res => 
-            res.room_id === room.room_id &&
-            new Date(res.check_in_date) <= currentTime &&
-            new Date(res.check_out_date) >= currentTime
-          )
-        };
-      }).filter(room => {
-        if (bookingSource === 'all' && stayType === 'all') return true;
-        
-        if (bookingSource === 'vacant') {
-          return room.status === 'vacant';
-        }
-        
-        if (stayType !== 'all') {
-          return room.status === stayType;
-        }
-        
-        return room.status === bookingSource;
-      });
-    }, [rooms, getRoomReservationStatus, getRoomReservationTimes, filteredReservations, 
-        currentTime, bookingSource, stayType]);
+  // 실시간 시간 업데이트
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-    const handleEditRoom = (room) => {
-      router.push({
-        pathname: '/mypage',
-        query: { 
-          section: 'room-edit',
-          roomId: room.room_id 
-        }
-      });
+  // 초기 데이터 로딩
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await Promise.all([fetchRooms(), fetchReservations()]);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setLoading(false);
+      }
     };
+    loadData();
+  }, [fetchRooms, fetchReservations]);
 
-    if (isLoading) return <LoadingMessage>로딩 중...</LoadingMessage>;
-    if (error) return <LoadingMessage>에러: {error}</LoadingMessage>;
+  // 객실 필터링 로직
+  const filteredRooms = useMemo(() => {
+    return rooms.map(room => {
+      const status = getRoomReservationStatus(room.room_id);
+      const currentReservation = getCurrentReservation(room.room_id);
+      
+      return {
+        ...room,
+        status,
+        currentReservation
+      };
+    }).filter(room => {
+      if (bookingSource === 'all' && stayType === 'all') return true;
+      if (bookingSource === 'vacant') return room.status === 'vacant';
+      if (stayType !== 'all') return room.status === stayType;
+      return room.status === bookingSource;
+    });
+  }, [rooms, getRoomReservationStatus, getRoomReservationTimes, 
+      filteredReservations, currentTime, bookingSource, stayType]);
 
-    return (
-        <RootLayout>
-        <PageContent>
+  // 이벤트 핸들러
+  const handleEditRoom = (room) => {
+    router.push({
+      pathname: '/mypage',
+      query: { section: 'room-edit', roomId: room.room_id }
+    });
+  };
+
+  // 로딩 및 에러 상태 처리
+  if (isLoading) return <LoadingMessage>로딩 중...</LoadingMessage>;
+  if (error) return <LoadingMessage>에러: {error}</LoadingMessage>;
+
+  // 렌더링
+  return (
+    <RootLayout>
+      <PageContent>
         <HeaderWrapper>
           <Title>객실 관리 현황</Title>
           <CurrentTime>{currentTime.toLocaleString('ko-KR', { hour12: false })}</CurrentTime>
         </HeaderWrapper>
+
         <ControlContainer>
           <TabContainer />
           <ControlPanel>
@@ -115,31 +114,113 @@ const RoomsPage = () => {
             </ViewModeButtons>
           </ControlPanel>
         </ControlContainer>
-        {isLoading ? (
-          <LoadingMessage>로딩 중...</LoadingMessage>
+
+        {viewMode === 'card' ? (
+          <RoomGrid>
+            {filteredRooms.map(room => (
+              <RoomCard 
+                key={room.room_id}
+                room={room}
+                onEdit={() => handleEditRoom(room)}
+              />
+            ))}
+          </RoomGrid>
         ) : (
-          viewMode === 'card' ? (
-            <RoomGrid>
-              {filteredRooms.map(room => (
-                <RoomCard 
-                  key={room.room_id}
-                  room={room}
-                  onEdit={() => handleEditRoom(room)}
-                />
-              ))}
-            </RoomGrid>
-          ) : (
-            <RoomList 
-              rooms={filteredRooms}
-              onEditRoom={handleEditRoom}
-            />
-          )
+          <RoomList 
+            rooms={filteredRooms}
+            onEditRoom={handleEditRoom}
+          />
         )}
       </PageContent>
     </RootLayout>
-    );
+  );
 };
 
+// 3. 서브 컴포넌트들
+const TabContainer = () => {
+  const { 
+    setStayType, 
+    stayType,
+    getStayTypeCount,
+    getRoomsByStayType
+  } = useReservationStore();
+
+  const { rooms } = useRoomStore();
+
+  const tabFilters = [
+    { id: 'all', label: '전체', value: 'all' },
+    { id: 'hourly', label: '대실', value: 'hourlyStay' },
+    { id: 'overnight', label: '숙박', value: 'overnightStay' },
+    { id: 'long', label: '장기', value: 'longStay' }
+  ];
+
+  return (
+    <TabWrapper>
+      {tabFilters.map(({ id, label, value }) => (
+        <Tab 
+          key={id}
+          $active={stayType === value} 
+          onClick={() => setStayType(value)}
+          color={theme.colors[id === 'all' ? 'primary' : value]}
+        >
+          {label}
+          <Count $active={stayType === value}>
+            {value === 'all' ? rooms?.length || 0 : getStayTypeCount(value)}
+          </Count>
+        </Tab>
+      ))}
+    </TabWrapper>
+  );
+};
+
+const FilterSelect = () => {
+  const { 
+    bookingSource, 
+    setBookingSource,
+    setStayType 
+  } = useReservationStore();
+
+  const statusOptions = [
+    { value: 'all', label: '전체 객실 상태' },
+    { value: 'vacant', label: '공실' },
+    { value: 'longStay', label: '장기' },
+    { value: 'overnightStay', label: '숙박' },
+    { value: 'hourlyStay', label: '대실' },
+    { value: 'cleaningRequested', label: '청소요청' },
+    { value: 'cleaningInProgress', label: '청소중' },
+    { value: 'cleaningComplete', label: '청소완료' },
+    { value: 'salesStopped', label: '판매중지' },
+    { value: 'inspectionRequested', label: '점검요청' },
+    { value: 'inspectionComplete', label: '점검완료' },
+    { value: 'underInspection', label: '점검중' },
+    { value: 'reservationComplete', label: '예약완료' }
+  ];
+
+  return (
+    <FilterSelectWrapper>
+      <FilterIcon />
+      <StyledSelect 
+        value={bookingSource} 
+        onChange={(e) => {
+          const value = e.target.value;
+          setBookingSource(value);
+          if (value !== bookingSource) {
+            setStayType('all');
+          }
+        }}
+      >
+        {statusOptions.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </StyledSelect>
+      <DropdownIcon />
+    </FilterSelectWrapper>
+  );
+};
+
+// 4. 스타일 컴포넌트들
 const PageContent = styled.div`
   padding: 15px;
 `;
@@ -270,120 +351,5 @@ const LoadingMessage = styled.div`
   margin-top: 20px;
 `;
 
-const TabContainer = () => {
-  const { 
-    setStayType, 
-    stayType,
-    getRoomReservationStatus,
-    filteredReservations
-  } = useReservationDisplayStore();
-  
-  const { rooms } = useRoomStore();
-  
-  const getTabCount = (value) => {
-    if (!rooms || !filteredReservations) return 0;
-    
-    if (value === 'all') return rooms.length;
-
-    const currentTime = new Date();
-    
-    return rooms.filter(room => {
-      const currentReservation = filteredReservations.find(res => 
-        res.room_id === room.room_id &&
-        new Date(res.check_in_date) <= currentTime &&
-        new Date(res.check_out_date) >= currentTime
-      );
-
-      if (!currentReservation) {
-        return value === 'vacant';
-      }
-
-      switch(value) {
-        case 'hourlyStay':
-          return currentReservation.stay_type === '대실';
-        case 'overnightStay':
-          return currentReservation.stay_type === '숙박';
-        case 'longStay':
-          return currentReservation.stay_type === '장기';
-        case 'vacant':
-          return false;
-        default:
-          return false;
-      }
-    }).length;
-  };
-
-  const tabFilters = [
-    { id: 'all', label: '전체', value: 'all' },
-    { id: 'hourly', label: '대실', value: 'hourlyStay' },
-    { id: 'overnight', label: '숙박', value: 'overnightStay' },
-    { id: 'long', label: '장기', value: 'longStay' }
-  ];
-
-  return (
-    <TabWrapper>
-      {tabFilters.map(({ id, label, value }) => (
-        <Tab 
-          key={id}
-          $active={stayType === value} 
-          onClick={() => setStayType(value)}
-          color={theme.colors[value === 'all' ? 'primary' : value]}
-        >
-          {label}
-          <Count $active={stayType === value}>
-            {getTabCount(value)}
-          </Count>
-        </Tab>
-      ))}
-    </TabWrapper>
-  );
-};
-
-const FilterSelect = () => {
-  const { 
-    bookingSource, 
-    setBookingSource,
-    setStayType 
-  } = useReservationDisplayStore();
-
-  const statusOptions = [
-    { value: 'all', label: '전체 객실 상태' },
-    { value: 'vacant', label: '공실' },
-    { value: 'longStay', label: '장기' },
-    { value: 'overnightStay', label: '숙박' },
-    { value: 'hourlyStay', label: '대실' },
-    { value: 'cleaningRequested', label: '청소요청' },
-    { value: 'cleaningInProgress', label: '청소중' },
-    { value: 'cleaningComplete', label: '청소완료' },
-    { value: 'salesStopped', label: '판매중지' },
-    { value: 'inspectionRequested', label: '점검요청' },
-    { value: 'inspectionComplete', label: '점검완료' },
-    { value: 'underInspection', label: '점검중' },
-    { value: 'reservationComplete', label: '예약완료' }
-  ];
-
-  return (
-    <FilterSelectWrapper>
-      <FilterIcon />
-      <StyledSelect 
-        value={bookingSource} 
-        onChange={(e) => {
-          const value = e.target.value;
-          setBookingSource(value);
-          if (value !== bookingSource) {
-            setStayType('all');
-          }
-        }}
-      >
-        {statusOptions.map(option => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </StyledSelect>
-      <DropdownIcon />
-    </FilterSelectWrapper>
-  );
-};
-
+// 5. 익스포트
 export default RoomsPage;

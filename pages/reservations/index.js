@@ -10,9 +10,8 @@ import useRoomStore from '../../src/store/roomStore';
 
 const ReservationsPage = () => {
   const [activeTab, setActiveTab] = useState('list');
-  const [timelineStartDate, setTimelineStartDate] = useState(new Date());
-  const { fetchReservations, reservations } = useReservationStore();
-  const { fetchRooms, rooms } = useRoomStore();
+  const { fetchReservations } = useReservationStore();
+  const { fetchRooms } = useRoomStore();
 
   useEffect(() => {
     const loadData = async () => {
@@ -51,7 +50,7 @@ const ReservationsPage = () => {
 const PageContent = styled.div`
   padding: 20px;
   background-color: white;
-  min-height: calc(100vh - 60px); // 헤더 높이를 뺀 전체 높이
+  min-height: calc(100vh - 60px);
 `;
 
 const PageTitle = styled.h1`

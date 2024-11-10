@@ -1,6 +1,6 @@
 'use client'; // 클라이언트 사이드에서 실행되는 컴포넌트임을 명시
 
-import React, { useState, useEffect, useCallback } from 'react'; // React 및 필요한 훅을 임포트
+import React, { useState, useEffect, useCallback, useMemo } from 'react'; // React 및 필요한 훅을 임포트
 import styled, { keyframes } from 'styled-components'; // styled-components와 keyframes 임포트
 import { MdCreditCard, MdCreditCardOff } from "react-icons/md"; // Material Design 아이콘 임포트
 import { IoIosWarning } from "react-icons/io"; // iOS 경고 아이콘 임포트
@@ -10,7 +10,6 @@ import useReservationSettingsStore from '@/src/store/reservationSettingsStore';
 import useReservationStore from '@/src/store/reservationStore';
 import RoomStatusModal from './RoomStatusModal';
 import ReservationModal from '../reservations/ReservationModal';
-import useReservationDisplayStore from '../../store/reservationDisplayStore';
 import axios from 'axios';
 import useRoomStore from '@/src/store/roomStore';
 
@@ -49,56 +48,34 @@ const RoomCard = ({ room }) => {
   const [subCard, setSubCard] = useState(generateRandomCardStatus());
   const [roomStatus, setRoomStatus] = useState(room?.room_status || null);
   const { settings } = useReservationSettingsStore();
-  const { reservations, isLoading: reservationsLoading } = useReservationStore();
+  const { 
+    getRoomReservationStatus, 
+    getCurrentReservation,
+    reservations 
+  } = useReservationStore();
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
-  const { setSelectedReservation } = useReservationDisplayStore();
-  const { getRoomReservationStatus } = useReservationDisplayStore();
   const { rooms, updateRoom } = useRoomStore();
-
-  // 현재 객실의 예약 상태를 확인하는 함수
-  const checkRoomReservation = useCallback(() => {
-    if (!room || !reservations) return null;
-
-    const now = new Date();
-    const currentReservation = reservations.find(reservation => {
-      const checkIn = new Date(reservation.check_in_date);
-      const checkOut = new Date(reservation.check_out_date);
-      
-      return reservation.room_id === room.room_id &&
-             checkIn <= now &&
-             checkOut >= now;
-    });
-
-    return currentReservation;
-  }, [room, reservations]);
 
   // 객실 상태 초기화 및 업데이트
   useEffect(() => {
-    if (reservationsLoading) return;
+    if (!room || !reservations) return;
 
-    const initializeRoomStatus = async () => {
+    const initializeRoomStatus = () => {
       setIsLoading(true);
       try {
-        // 1. room_status가 있는 경우
-        if (room.room_status) {
-          setRoomStatus(room.room_status);
-          return;
-        }
-
-        // 2. 현재 예약 확인
-        const currentReservation = checkRoomReservation();
-        if (currentReservation) {
-          const newStatus = 
-            currentReservation.stay_type === '대실' ? 'hourlyStay' :
-            currentReservation.stay_type === '숙박' ? 'overnightStay' :
-            currentReservation.stay_type === '장기' ? 'longStay' : 'reservationComplete';
-          
-          setRoomStatus(newStatus);
-        } else {
-          // 3. 예약이 없는 경우 공실로 설정
-          setRoomStatus('vacant');
-        }
+        const status = getRoomReservationStatus(room.room_id);
+        // KST 시간으로 변환
+        const kstDate = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
+        
+        console.log('Room Status:', {
+          roomId: room.room_id,
+          status,
+          currentTime: kstDate.toISOString(),
+          localTime: kstDate.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+        });
+        
+        setRoomStatus(status);
       } catch (error) {
         console.error('객실 상태 초기화 실패:', error);
         setRoomStatus('vacant');
@@ -108,7 +85,27 @@ const RoomCard = ({ room }) => {
     };
 
     initializeRoomStatus();
-  }, [room, reservations, reservationsLoading, checkRoomReservation]);
+    
+    // 1분마다 상태 업데이트
+    const interval = setInterval(initializeRoomStatus, 60000);
+    return () => clearInterval(interval);
+  }, [room, reservations, getRoomReservationStatus]);
+
+  // 현재 예약 정보 가져오기
+  const currentReservation = useMemo(() => {
+    if (!room) return null;
+    const reservation = getCurrentReservation(room.room_id);
+    const kstDate = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
+    
+    console.log('Current Reservation:', {
+      roomId: room.room_id,
+      reservation,
+      currentTime: kstDate.toISOString(),
+      localTime: kstDate.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+    });
+    
+    return reservation;
+  }, [room, getCurrentReservation]);
 
   // 카드 상태 업데이트 인터벌 - 항상 실행되도록 수정
   useEffect(() => {
@@ -128,7 +125,7 @@ const RoomCard = ({ room }) => {
     };
   }, [roomStatus]);
 
-  if (isLoading || reservationsLoading) {
+  if (isLoading) {
     return (
       <CardContainer status="loading">
         <LoadingSpinner />
@@ -197,43 +194,19 @@ const RoomCard = ({ room }) => {
     return { isDelayed: false, type: null };
   };
 
+  // 예약 시간 정보 표시 수정
   const getReservationTimes = () => {
-    if (roomStatus === 'vacant') return null;
+    if (!currentReservation || roomStatus === 'vacant') return null;
 
-    let timeText = '';
-    let delayStatus = { isDelayed: false, type: null };
+    const stayTypeSettings = settings[currentReservation.stay_type];
+    if (!stayTypeSettings) return null;
 
-    switch(roomStatus) {
-      case 'hourlyStay':
-        if (settings?.['대실']?.check_in_time && settings?.['대실']?.check_out_time) {
-          timeText = `${formatTime(settings['대실'].check_in_time)} ~ ${formatTime(settings['대실'].check_out_time)}`;
-          delayStatus = checkDelayStatus(settings['대실'].check_in_time, settings['대실'].check_out_time, 'hourlyStay');
-        } else {
-          timeText = '대실 시간 미설정';
-        }
-        break;
-      
-      case 'overnightStay':
-        if (settings?.['숙박']?.check_in_time && settings?.['숙박']?.check_out_time) {
-          timeText = `${formatTime(settings['숙박'].check_in_time)} ~ ${formatTime(settings['숙박'].check_out_time)}`;
-          delayStatus = checkDelayStatus(settings['숙박'].check_in_time, settings['숙박'].check_out_time, 'overnightStay');
-        } else {
-          timeText = '숙박 시간 미설정';
-        }
-        break;
-      
-      case 'longStay':
-        if (settings?.['장기']?.check_in_time && settings?.['장기']?.check_out_time) {
-          timeText = `${formatTime(settings['장기'].check_in_time)} ~ ${formatTime(settings['장기'].check_out_time)}`;
-          delayStatus = checkDelayStatus(settings['장기'].check_in_time, settings['장기'].check_out_time, 'longStay');
-        } else {
-          timeText = '장기 시간 미설정';
-        }
-        break;
-      
-      default:
-        return null;
-    }
+    const timeText = `${formatTime(currentReservation.check_in_time)} ~ ${formatTime(currentReservation.check_out_time)}`;
+    const delayStatus = checkDelayStatus(
+      currentReservation.check_in_time, 
+      currentReservation.check_out_time, 
+      roomStatus
+    );
 
     return (
       <RoomTimes>
@@ -298,9 +271,6 @@ const RoomCard = ({ room }) => {
     setIsStatusModalOpen(false);
     setIsReservationModalOpen(true);
   };
-
-  // 현재 객실의 예약 상태 확인
-  const currentReservation = getRoomReservationStatus(room.room_id);
 
   return (
     <>

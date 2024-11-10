@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import useReservationDisplayStore from '../../store/reservationDisplayStore';
 import useRoomStore from '../../store/roomStore';
+import useReservationStore from '../../store/reservationStore';
 
 const RESERVATION_COLORS = {
   '대실': '#748ffc',  // 부드러운 파란색
@@ -30,7 +30,7 @@ const formatTooltip = (reservation) => {
 };
 
 const TimelineView = () => {
-  const { reservations, isLoading: reservationsLoading, error: reservationsError, fetchReservations, handleSearch } = useReservationDisplayStore();
+  const { reservations, isLoading: reservationsLoading, error: reservationsError, fetchReservations, handleSearch } = useReservationStore();
   const { rooms, isLoading: roomsLoading, error: roomsError, fetchRooms } = useRoomStore();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date();

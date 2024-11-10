@@ -96,20 +96,28 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
   };
 
   // 날짜 변경 핸들러 수정
-  const handleDateChange = (field, date) => {
-    setFormData(prev => {
-      const newData = {
-        ...prev,
-        [field]: date
-      };
+  const handleDateChange = (field, value) => {
+    try {
+      // 입력된 날짜 문자열을 그대로 사용
+      setFormData(prev => {
+        const newData = {
+          ...prev,
+          [field]: value  // YYYY-MM-DD 형식의 문자열 그대로 저장
+        };
 
-      // 숙박 유형과 체크인/아웃 날짜가 모두 있을 때만 객실 조회
-      if (newData.stay_type && newData.check_in_date && newData.check_out_date) {
-        fetchAvailableRooms();
-      }
+        // check_in_date가 변경되었을 때 check_out_date 최소값 조정
+        if (field === 'check_in_date' && value) {
+          if (prev.check_out_date && prev.check_out_date < value) {
+            newData.check_out_date = value;
+          }
+        }
 
-      return newData;
-    });
+        return newData;
+      });
+    } catch (error) {
+      console.error('날짜 변경 오류:', error);
+      setError('날짜 형식이 올바르지 않습니다.');
+    }
   };
 
   // 객실 선택 핸들러
@@ -269,7 +277,7 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
       case 2:
         return (
           <>
-            <FormGroup>
+              <FormGroup>
               <Label>체크인 날짜</Label>
               <Input
                 type="date"
@@ -364,15 +372,11 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
   // 예약 저장
   const handleSave = async () => {
     try {
-      // 날짜 데이터 변환
+      // 날짜를 문자열 그대로 전달
       const formattedData = {
         ...formData,
-        check_in_date: formData.check_in_date instanceof Date 
-          ? formData.check_in_date.toISOString().split('T')[0]
-          : formData.check_in_date,
-        check_out_date: formData.check_out_date instanceof Date 
-          ? formData.check_out_date.toISOString().split('T')[0]
-          : formData.check_out_date,
+        check_in_date: formData.check_in_date,  // YYYY-MM-DD 형식 문자열
+        check_out_date: formData.check_out_date,  // YYYY-MM-DD 형식 문자열
         check_in_time: formData.check_in_time || null,
         check_out_time: formData.check_out_time || null,
         rate_amount: parseInt(formData.rate_amount) || 0
@@ -389,6 +393,7 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
       } else {
         await reservationStore.createReservation(formattedData);
       }
+      
       await onSave?.();
       onClose();
     } catch (error) {
