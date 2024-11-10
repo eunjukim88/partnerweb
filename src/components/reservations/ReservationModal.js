@@ -349,24 +349,17 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
   // 예약 저장
   const handleSave = async () => {
     try {
-      // 날짜를 문자열 그대로 전달
       const formattedData = {
         ...formData,
-        check_in_date: formData.check_in_date,  // YYYY-MM-DD 형식 문자열
-        check_out_date: formData.check_out_date,  // YYYY-MM-DD 형식 문자열
+        check_in_date: dateUtils.formatDate(formData.check_in_date),
+        check_out_date: dateUtils.formatDate(formData.check_out_date),
         check_in_time: formData.check_in_time || null,
         check_out_time: formData.check_out_time || null,
         rate_amount: parseInt(formData.rate_amount) || 0
       };
 
-      if (isEdit) {
-        if (!initialData.reservation_id) {
-          throw new Error('예약 ID가 없습니다.');
-        }
-        await updateReservation(
-          initialData.reservation_id,
-          formattedData
-        );
+      if (isEdit && initialData?.reservation_id) {
+        await updateReservation(initialData.reservation_id, formattedData);
       } else {
         await createReservation(formattedData);
       }
@@ -374,7 +367,6 @@ const ReservationModal = ({ isEdit = false, initialData = null, onClose, onSave 
       await onSave?.();
       onClose();
     } catch (error) {
-      console.error('저장 실패:', error);
       setError(error.message);
     }
   };

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { FaTimes } from 'react-icons/fa';
 import theme from '../../styles/theme';
 import useRoomStore from '../../store/roomStore';
 import useReservationStore from '../../store/reservationStore';
+import ReservationModal from '../reservations/ReservationModal';
 
 const RoomStatusModal = ({ room, onClose }) => {
   const [memo, setMemo] = useState(room?.memo || '');
@@ -11,12 +12,20 @@ const RoomStatusModal = ({ room, onClose }) => {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const { updateRoom } = useRoomStore();
-  const { filteredReservations, setSelectedReservation, setModalOpen: setReservationModalOpen } = useReservationStore();
+  const { 
+    getCurrentReservation,
+    setSelectedReservation,
+    setModalOpen,
+    selectedReservation,
+    fetchReservations,
+    isModalOpen 
+  } = useReservationStore();
 
-  // 현재 객실의 예약 정보 찾기
-  const currentReservation = filteredReservations.find(reservation => 
-    reservation.room_id === room.room_id
-  );
+  // 현재 예약 정보 가져오기
+  const currentReservation = useMemo(() => {
+    if (!room?.room_id) return null;
+    return getCurrentReservation(room.room_id);
+  }, [room?.room_id, getCurrentReservation]);
 
   const statusOptions = [
     { value: 'reservationComplete', label: '예약완료' },
@@ -30,10 +39,12 @@ const RoomStatusModal = ({ room, onClose }) => {
   ];
 
   const handleStatusClick = (status) => {
-    setSelectedStatus(prev => prev === status ? null : status);
+    setSelectedStatus(status);
   };
 
   const handleSaveChanges = async () => {
+    if (!room?.room_id) return;
+    
     setError(null);
     setIsLoading(true);
     
@@ -52,14 +63,17 @@ const RoomStatusModal = ({ room, onClose }) => {
     }
   };
 
+  // 예 모달 열기 핸들러
   const handleReservationClick = () => {
     if (currentReservation) {
+      // 수정의 경우 현재 예약 정보 설정
       setSelectedReservation(currentReservation);
     } else {
-      setSelectedReservation(null);
+      // 신규 등록의 경우 선택된 객실 ID만 설정
+      setSelectedReservation({ room_id: room.room_id });
     }
-    setReservationModalOpen(true);
-    onClose();
+    setReservationModalOpen(true);  // 예약 모달 열기
+    onClose();  // 상태 모달 닫기
   };
 
   return (
@@ -73,7 +87,10 @@ const RoomStatusModal = ({ room, onClose }) => {
         </ModalHeader>
 
         <ButtonSection>
-          <ActionButton onClick={handleReservationClick}>
+        <ActionButton onClick={() => {
+                      setSelectedReservation(currentReservation);
+                      setModalOpen(true);
+            }}>     
             {currentReservation ? '예약 변경' : '예약 등록'}
           </ActionButton>
         </ButtonSection>
@@ -117,6 +134,19 @@ const RoomStatusModal = ({ room, onClose }) => {
           </SaveButton>
         </SaveButtonSection>
       </ModalContent>
+
+
+      {isModalOpen && (
+        <ReservationModal
+          isEdit={!!selectedReservation}
+          initialData={selectedReservation}
+          onClose={() => {
+            setModalOpen(false);
+            setSelectedReservation(null);
+          }}
+          onSave={fetchReservations}
+        />
+      )}
     </ModalOverlay>
   );
 };
@@ -271,4 +301,5 @@ const ErrorMessage = styled.div`
   font-size: 14px;
 `;
 
-export default RoomStatusModal;
+export default React.memo(RoomStatusModal);
+

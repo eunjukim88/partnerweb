@@ -8,16 +8,15 @@ import useReservationStore from '../../store/reservationStore';
 const RESERVATION_COLORS = {
   '대실': '#748ffc',  // 부드러운 파란색
   '숙박': '#ff922b',  // 부드러운 주황색
-  '장기': '#51cf66'   // 부드러운 초록색
+  '장기': '#FF763B' 
 };
 
-// 날짜 포맷팅 함수 추가
+// 날짜 포맷팅 함수 수정
 const formatDate = (date) => {
   if (!date) return '';
   return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+    month: '2-digit', // 두 자리 월
+    day: '2-digit'    // 두 자리 일
   }).format(date);
 };
 
@@ -26,7 +25,7 @@ const formatTooltip = (reservation) => {
   if (!reservation) return '';
   const checkIn = new Date(reservation.check_in_date);
   const checkOut = new Date(reservation.check_out_date);
-  return `예약자: ${reservation.guest_name}\n체크인: ${formatDate(checkIn)}\n체크아웃: ${formatDate(checkOut)}\n객실: ${reservation.room_number}`;
+  return `예약자: ${reservation.guest_name}\n체크인: ${formatDate(checkIn)}\n체크아웃: ${formatDate(checkOut)}\n숙박유형: ${reservation.stay_type}`;
 };
 
 const TimelineView = () => {
@@ -111,6 +110,20 @@ const TimelineView = () => {
     });
   }, [reservations, currentWeekStart, currentWeekEnd]);
 
+  // 중복 제거된 객실 목록 생성
+  const uniqueRooms = useMemo(() => {
+    if (!Array.isArray(rooms)) return [];
+    
+    // room_number를 기준으로 중복 제거하고 정렬
+    return Array.from(
+      new Map(
+        rooms
+          .sort((a, b) => a.room_number.localeCompare(b.room_number, undefined, { numeric: true }))
+          .map(room => [room.room_number, room])
+      ).values()
+    );
+  }, [rooms]);
+
   // 객실별 예약 데이터 매핑
   const reservationsByRoom = useMemo(() => {
     if (!Array.isArray(rooms) || !Array.isArray(reservations)) return {};
@@ -139,48 +152,52 @@ const TimelineView = () => {
 
     return (
       <Cell>
-        {dayReservations.map(res => {
+        {dayReservations.map((res) => {
           const checkIn = new Date(res.check_in_date);
           const checkOut = new Date(res.check_out_date);
           const currentDate = new Date(date);
-
+          
           const isCheckInDay = checkIn.toDateString() === currentDate.toDateString();
           const isCheckOutDay = checkOut.toDateString() === currentDate.toDateString();
-          const isMiddleDay = currentDate > checkIn && currentDate < checkOut;
+          const isMiddleDay = !isCheckInDay && !isCheckOutDay;
+          const isShortStay = res.stay_type === '대실';
 
           let position = '0%';
           let width = '100%';
           let label = '';
 
-          if (res.stay_type === '대실') {
+          if (isShortStay) {
+            // 대실인 경우
             position = '0%';
             width = '50%';
-            label = `(IN)${res.guest_name} 대실(OUT)`;
-          } else if (res.stay_type === '숙박' || res.stay_type === '장기') {
+            label = `대실`;
+          } else {
+            // 숙박 또는 장기인 경우
             if (isCheckInDay) {
               position = '50%';
               width = '50%';
-              label = `(IN)${res.guest_name}`;
+              label = `IN ${res.stay_type}`;
             } else if (isCheckOutDay) {
               position = '0%';
               width = '50%';
-              label = `${res.stay_type}(OUT)`;
+              label = `${res.stay_type} OUT`;
             } else if (isMiddleDay) {
+              position = '0%';
               width = '100%';
               label = '';
             }
           }
 
           return (
-            <ReservationTag 
+            <ReservationTag
               key={res.reservation_id}
               stayType={res.stay_type}
-              title={formatTooltip(res)}
-              style={{ left: position, width }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTooltipId(res.reservation_id);
+              style={{
+                left: position,
+                width: width,
+                zIndex: isShortStay ? 2 : 1
               }}
+              title={formatTooltip(res)}
             >
               {label}
             </ReservationTag>
@@ -206,6 +223,7 @@ const TimelineView = () => {
       ) : (
         <>
           <TimelineHeader>
+            <HeaderCell>객실</HeaderCell>
             {weekDates.map(date => (
               <HeaderCell key={date.toISOString()}>
                 {formatDate(date)}
@@ -213,7 +231,7 @@ const TimelineView = () => {
             ))}
           </TimelineHeader>
           <TimelineBody>
-            {rooms.map(room => (
+            {uniqueRooms.map(room => (
               <TimelineRow key={room.room_id}>
                 <RoomCell>{room.room_number}</RoomCell>
                 {weekDates.map(date => (
@@ -237,8 +255,8 @@ const TimelineContainer = styled.div`
   width: 100%;
   overflow-x: auto;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
   margin: 20px 0;
 `;
 
@@ -246,15 +264,28 @@ const TimelineHeader = styled.div`
   display: grid;
   grid-template-columns: 100px repeat(7, 1fr);
   background-color: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+  border: 1px solid #e9ecef;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  height: 50px;
 `;
 
 const HeaderCell = styled.div`
-  padding: 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  font-weight: 500;
+  font-weight: 600;
   color: #495057;
-  border-right: 1px solid #dee2e6;
+  border-right: 1px solid #e9ecef;
+  background: #f1f3f5;
+  font-size: 0.95rem;
+  
+  &:first-child {
+    background: #e9ecef;
+  }
   
   &:last-child {
     border-right: none;
@@ -263,34 +294,44 @@ const HeaderCell = styled.div`
 
 const TimelineBody = styled.div`
   display: grid;
-  grid-template-rows: repeat(auto-fill, minmax(60px, 1fr));
+  grid-template-rows: repeat(auto-fill, minmax(50px, 1fr));
+  border: 1px solid #e9ecef;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
 `;
 
 const TimelineRow = styled.div`
   display: grid;
   grid-template-columns: 100px repeat(7, 1fr);
-  border-bottom: 1px solid #dee2e6;
+  height: 50px;
+  border-bottom: 1px solid #e9ecef;
   
   &:last-child {
     border-bottom: none;
   }
+
+  &:hover {
+    background-color: #f8f9fa;
+  }
 `;
 
 const RoomCell = styled.div`
-  padding: 12px;
-  background-color: #f8f9fa;
-  border-right: 1px solid #dee2e6;
-  font-weight: 500;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: #f8f9fa;
+  border-right: 1px solid #e9ecef;
+  font-weight: 500;
+  color: #495057;
+  font-size: 0.95rem;
 `;
 
 const WeekNavigator = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px;
+  gap: 24px;
   margin-bottom: 24px;
   padding: 12px 0;
 `;
@@ -298,55 +339,73 @@ const WeekNavigator = styled.div`
 const WeekDisplay = styled.div`
   min-width: 300px;
   text-align: center;
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: #495057;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #343a40;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #f8f9fa;
 `;
 
 const NavigateButton = styled.button`
-  padding: 8px 16px;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
+  padding: 10px 20px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
   background-color: white;
   color: #495057;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 500;
   transition: all 0.2s;
 
   &:hover {
     background-color: #f8f9fa;
-    border-color: #ced4da;
+    border-color: #dee2e6;
+    transform: translateY(-1px);
   }
 
   &:active {
     background-color: #e9ecef;
+    transform: translateY(0);
   }
 `;
 
 const Cell = styled.div`
   padding: 8px;
-  border: 1px solid #dee2e6;
-  min-height: 60px;
+  height: 60px;
   position: relative;
-  background: white;
+  background: transparent;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow: hidden;
+
+  &:last-child {
+    border-right: none;
+  }
 `;
 
 const ReservationTag = styled.div`
   background-color: ${props => RESERVATION_COLORS[props.stayType] || '#808080'};
   padding: 4px 8px;
-  border-radius: 4px;
   font-size: 0.85rem;
   color: white;
   cursor: pointer;
   position: absolute;
   transition: all 0.2s ease;
+  height: calc(100% - 16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   
   &:hover {
-    opacity: 0.9;
+    opacity: 0.95;
     transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
   }
 `;
 

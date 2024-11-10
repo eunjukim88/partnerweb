@@ -51,11 +51,13 @@ const RoomCard = ({ room }) => {
   const { 
     getRoomReservationStatus, 
     getCurrentReservation,
-    reservations 
+    reservations,
+    isReservationModalOpen,
+    setModalOpen,
+    selectedReservation,
+    setSelectedReservation 
   } = useReservationStore();
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
-  const { rooms, updateRoom } = useRoomStore();
 
   // 객실 상태 초기화 및 업데이트
   useEffect(() => {
@@ -65,16 +67,6 @@ const RoomCard = ({ room }) => {
       setIsLoading(true);
       try {
         const status = getRoomReservationStatus(room.room_id);
-        // KST 시간으로 변환
-        const kstDate = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
-        
-        console.log('Room Status:', {
-          roomId: room.room_id,
-          status,
-          currentTime: kstDate.toISOString(),
-          localTime: kstDate.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
-        });
-        
         setRoomStatus(status);
       } catch (error) {
         console.error('객실 상태 초기화 실패:', error);
@@ -89,23 +81,13 @@ const RoomCard = ({ room }) => {
     // 1분마다 상태 업데이트
     const interval = setInterval(initializeRoomStatus, 60000);
     return () => clearInterval(interval);
-  }, [room, reservations, getRoomReservationStatus]);
+  }, [room?.room_id, reservations, getRoomReservationStatus]);
 
   // 현재 예약 정보 가져오기
   const currentReservation = useMemo(() => {
-    if (!room) return null;
-    const reservation = getCurrentReservation(room.room_id);
-    const kstDate = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
-    
-    console.log('Current Reservation:', {
-      roomId: room.room_id,
-      reservation,
-      currentTime: kstDate.toISOString(),
-      localTime: kstDate.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
-    });
-    
-    return reservation;
-  }, [room, getCurrentReservation]);
+    if (!room?.room_id) return null;
+    return getCurrentReservation(room.room_id);
+  }, [room?.room_id, getCurrentReservation]);
 
   // 카드 상태 업데이트 인터벌 - 항상 실행되도록 수정
   useEffect(() => {
@@ -267,15 +249,16 @@ const RoomCard = ({ room }) => {
     }
   };
 
+  // 예약 모달 열기 핸들러
   const handleReservationClick = () => {
-    setIsStatusModalOpen(false);
-    setIsReservationModalOpen(true);
+    setIsStatusModalOpen(false);  // 상태 모달 닫기
+    setModalOpen(true);  // 예약 모달 열기
   };
 
   return (
     <>
       <CardContainer 
-        status={room.room_status || roomStatus} 
+        status={roomStatus} 
         onClick={handleCardClick}
       >
         <RoomHeader>
@@ -343,12 +326,16 @@ const RoomCard = ({ room }) => {
 
       {isReservationModalOpen && (
         <ReservationModal
-          isEdit={!!currentReservation}
-          initialData={currentReservation}
-          onClose={() => setIsReservationModalOpen(false)}
-          onSave={() => {
-            setIsReservationModalOpen(false);
-            // 필요한 경우 데이터 리프레시
+          isEdit={!!selectedReservation?.reservation_id}
+          initialData={selectedReservation}
+          onClose={() => {
+            setModalOpen(false);
+            setSelectedReservation(null);
+          }}
+          onSave={async () => {
+            await fetchReservations();
+            setModalOpen(false);
+            setSelectedReservation(null);
           }}
         />
       )}
@@ -621,5 +608,5 @@ const LoadingSpinner = styled.div`
   }
 `;
 
-export default RoomCard; // RoomCard 컴포넌트를 기 내보내기
+export default React.memo(RoomCard); // 성능 최적화를 위해 React.memo 사용
 

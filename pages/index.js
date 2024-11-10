@@ -11,7 +11,7 @@ export default function Home() {
       router.push('/login');
     } else {
       // 토큰이 있으면 예약 관리 페이지로
-      router.push('/reservations');
+      router.push('/rooms');
     }
   }, [router]);
 

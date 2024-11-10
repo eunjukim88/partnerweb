@@ -65,14 +65,14 @@ const dateUtils = {
   }
 };
 
-// 예약 검증 관련 유틸리티
+// 예약 검증 관련 유틸리티 개선
 const reservationUtils = {
   validateDates: (checkIn, checkOut, stayTypeSettings) => {
     const dayIndex = new Date(checkIn).getDay();
     const availableDays = stayTypeSettings.available_days.split('');
     
     if (availableDays[dayIndex] === '0') {
-      throw new Error('선택하신 날짜는 예약이 불가능합니다.');
+      throw new Error('선택하신 날짜는 예약이 불가능합다.');
     }
     return true;
   },
@@ -84,6 +84,86 @@ const reservationUtils = {
       new Date(r.check_out_date) > new Date(checkIn) &&
       new Date(r.check_in_date) < new Date(checkOut)
     );
+  },
+
+  // 시간을 분으로 변환하는 유틸리티
+  timeToMinutes: (timeString) => {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return hours * 60 + minutes;
+  },
+
+  // 청소 및 준비 시간 (분 단위)
+  CLEANING_BUFFER: 60,
+
+  // 예약 시간 중복 검사 (시간까지 고려)
+  checkTimeOverlap: (newReservation, existingReservation, settings) => {
+    const newCheckIn = new Date(newReservation.check_in_date);
+    const newCheckOut = new Date(newReservation.check_out_date);
+    const existingCheckIn = new Date(existingReservation.check_in_date);
+    const existingCheckOut = new Date(existingReservation.check_out_date);
+
+    // 체크인/아웃 시간 설정
+    const newSettings = settings[newReservation.stay_type];
+    const existingSettings = settings[existingReservation.stay_type];
+    
+    const newInMinutes = reservationUtils.timeToMinutes(newReservation.check_in_time || newSettings.check_in_time);
+    const newOutMinutes = reservationUtils.timeToMinutes(newReservation.check_out_time || newSettings.check_out_time);
+    const existingInMinutes = reservationUtils.timeToMinutes(existingReservation.check_in_time);
+    const existingOutMinutes = reservationUtils.timeToMinutes(existingReservation.check_out_time);
+
+    newCheckIn.setHours(Math.floor(newInMinutes / 60), newInMinutes % 60);
+    newCheckOut.setHours(Math.floor(newOutMinutes / 60), newOutMinutes % 60);
+    existingCheckIn.setHours(Math.floor(existingInMinutes / 60), existingInMinutes % 60);
+    existingCheckOut.setHours(Math.floor(existingOutMinutes / 60), existingOutMinutes % 60);
+
+    // 대실과 숙박/장기 예약 간의 시간 비교
+    if (newReservation.stay_type === '대실' && existingReservation.stay_type === '대실') {
+      // 대실끼리는 같은 날짜에 시간이 겹치면 안됨
+      return newCheckOut > existingCheckIn && newCheckIn < existingCheckOut;
+    } else if (newReservation.stay_type === '대실' && 
+              (existingReservation.stay_type === '숙박' || existingReservation.stay_type === '장기')) {
+      // 대실은 숙박/장기의 체크인 시간 이전에 완료되어야 함
+      return newCheckOut.getTime() + (reservationUtils.CLEANING_BUFFER * 60000) > existingCheckIn.getTime();
+    } else if ((newReservation.stay_type === '숙박' || newReservation.stay_type === '장기') && 
+              existingReservation.stay_type === '대실') {
+      // 숙박/장기는 대실의 체크아웃 시간 이후에 시작되어야 함
+      return newCheckIn.getTime() < existingCheckOut.getTime() + (reservationUtils.CLEANING_BUFFER * 60000);
+    } else {
+      // 숙박/장기끼리는 날짜가 겹치면 안됨
+      return newCheckOut > existingCheckIn && newCheckIn < existingCheckOut;
+    }
+  },
+
+  // 예약 가능 여부 확인 함수 추가
+  isReservationPossible: (newReservation, existingReservation, settings) => {
+    // 다른 날짜면 무조건 가능
+    if (newReservation.check_in_date !== existingReservation.check_in_date) {
+      return true;
+    }
+
+    const newCheckIn = new Date(newReservation.check_in_date);
+    const existingCheckIn = new Date(existingReservation.check_in_date);
+    
+    const newSettings = settings[newReservation.stay_type];
+    const existingSettings = settings[existingReservation.stay_type];
+    
+    const newInTime = reservationUtils.timeToMinutes(newReservation.check_in_time || newSettings.check_in_time);
+    const newOutTime = reservationUtils.timeToMinutes(newReservation.check_out_time || newSettings.check_out_time);
+    const existingInTime = reservationUtils.timeToMinutes(existingReservation.check_in_time);
+    const existingOutTime = reservationUtils.timeToMinutes(existingReservation.check_out_time);
+
+    // 대실과 숙박/장기의 시간이 겹치지 않으면 예약 가능
+    if (newReservation.stay_type === '대실' && 
+        (existingReservation.stay_type === '숙박' || existingReservation.stay_type === '장기')) {
+      return newOutTime + reservationUtils.CLEANING_BUFFER <= existingInTime;
+    }
+    
+    if ((newReservation.stay_type === '숙박' || newReservation.stay_type === '장기') && 
+        existingReservation.stay_type === '대실') {
+      return existingOutTime + reservationUtils.CLEANING_BUFFER <= newInTime;
+    }
+
+    return false;
   }
 };
 
@@ -307,7 +387,7 @@ const useReservationStore = create(
               요일: checkInDay,
               객실요금존재: !!rate_amount,
               최종요금: rate_amount
-            });
+            });   
 
             return rate_amount;
           } catch (error) {
@@ -336,10 +416,21 @@ const useReservationStore = create(
         createReservation: async (data) => {
           set({ isLoading: true });
           try {
-            get().validateReservationNumber(data);
+            // 예약 설정 먼저 로드
+            const settingsStore = useReservationSettingsStore.getState();
+            await settingsStore.fetchSettings();
+            const settings = settingsStore.settings;
+            
+            if (!settings || !settings[data.stay_type]) {
+              throw new Error('예약 ��정을 불러올 수 없습니다.');
+            }
+
+            // 예약번호 중복 검사
+            await get().validateReservationNumber(data);
+            
+            // 예약 가능 여부 검증
             await get().validateReservation(data);
             
-            const settings = useReservationSettingsStore.getState().settings;
             const stayTypeSettings = settings[data.stay_type];
             
             const formattedData = {
@@ -351,6 +442,7 @@ const useReservationStore = create(
               rate_amount: parseInt(data.rate_amount) || 0
             };
 
+            console.log('Creating reservation with data:', formattedData);
             const response = await axios.post('/api/reservations/reservations', formattedData);
             
             set(state => ({
@@ -360,6 +452,7 @@ const useReservationStore = create(
 
             return response.data;
           } catch (error) {
+            set({ isLoading: false });
             throw handleApiError(error);
           }
         },
@@ -583,7 +676,83 @@ const useReservationStore = create(
           if (state.searchTerm) {
             state.setSearchTerm(state.searchTerm);
           }
-        }
+        },
+
+        validateReservation: async (data) => {
+          try {
+            const state = get();
+            const settingsStore = useReservationSettingsStore.getState();
+            let settings = settingsStore.settings;
+
+            // 설정이 없으면 기본 설정 사용
+            if (!settings || !settings[data.stay_type]) {
+              settings = {
+                대실: {
+                  check_in_time: '09:00',
+                  check_out_time: '21:00',
+                  available_days: '1111111'
+                },
+                숙박: {
+                  check_in_time: '15:00',
+                  check_out_time: '11:00',
+                  available_days: '1111111'
+                },
+                장기: {
+                  check_in_time: '15:00',
+                  check_out_time: '11:00',
+                  available_days: '1111111'
+                }
+              };
+            }
+
+            const stayTypeSettings = settings[data.stay_type];
+
+            // 1. 날짜 유효성 검사
+            reservationUtils.validateDates(
+              data.check_in_date,
+              data.check_out_date,
+              stayTypeSettings
+            );
+
+            // 2. 시간 유효성 검사
+            const checkInTime = data.check_in_time || stayTypeSettings.check_in_time;
+            const checkOutTime = data.check_out_time || stayTypeSettings.check_out_time;
+            
+            if (!checkInTime || !checkOutTime) {
+              throw new Error('체크인/아웃 시간이 올바르지 않습니다.');
+            }
+
+            // 3. 객실 중복 예약 검사
+            const existingReservations = state.reservations.filter(
+              r => r.room_id === data.room_id && 
+                  r.reservation_id !== data.reservation_id
+            );
+
+            for (const existing of existingReservations) {
+              // 예약 가능 여부 확인
+              if (!reservationUtils.isReservationPossible(
+                { ...data, check_in_time: checkInTime, check_out_time: checkOutTime },
+                existing,
+                settings
+              )) {
+                const hasOverlap = reservationUtils.checkTimeOverlap(
+                  { ...data, check_in_time: checkInTime, check_out_time: checkOutTime },
+                  existing,
+                  settings
+                );
+
+                if (hasOverlap) {
+                  throw new Error('해당 시간에 이미 예약이 존재합니다.');
+                }
+              }
+            }
+
+            return true;
+          } catch (error) {
+            console.error('예약 검증 실패:', error);
+            throw error;
+          }
+        },
       };
     },
     {

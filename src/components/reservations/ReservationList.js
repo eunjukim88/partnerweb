@@ -23,9 +23,7 @@ const formatDateToKorean = (dateString) => {
 const ReservationList = () => {
   // 필요한 상태만 구독
   const { 
-    reservations,
     filteredReservations,
-    totalFilteredReservations,
     isLoading,
     error,
     currentPage,
@@ -46,7 +44,6 @@ const ReservationList = () => {
     setSearchType,
     setStartDate,
     setEndDate,
-    resetFilters,
   } = useReservationStore();
 
   // 초기 데이터 로딩 및 날짜 설정
