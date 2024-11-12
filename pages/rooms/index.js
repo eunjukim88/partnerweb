@@ -20,6 +20,9 @@ const RoomsPage = () => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // 상태 추가
+  const [isInitialized, setIsInitialized] = useState(false);
+
   // Store에서 필요한 데이터와 함수들
   const { rooms, fetchRooms } = useRoomStore();
   const { 
@@ -42,14 +45,16 @@ const RoomsPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // 초기 데이터 로딩
+  // 초기 데이터 로딩 수정
   useEffect(() => {
     const loadData = async () => {
+      setLoading(true);
       try {
         await Promise.all([fetchRooms(), fetchReservations()]);
-        setLoading(false);
+        setIsInitialized(true);
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('데이터 로딩 오류:', error);
+      } finally {
         setLoading(false);
       }
     };
@@ -58,6 +63,8 @@ const RoomsPage = () => {
 
   // 객실 필터링 로직
   const filteredRooms = useMemo(() => {
+    if (!rooms || !rooms.length || !isInitialized) return [];
+    
     return rooms.map(room => {
       const status = getRoomReservationStatus(room.room_id);
       const currentReservation = getCurrentReservation(room.room_id);
@@ -73,8 +80,7 @@ const RoomsPage = () => {
       if (stayType !== 'all') return room.status === stayType;
       return room.status === bookingSource;
     });
-  }, [rooms, getRoomReservationStatus, getRoomReservationTimes, 
-      filteredReservations, currentTime, bookingSource, stayType]);
+  }, [rooms, isInitialized, getRoomReservationStatus, bookingSource, stayType, getCurrentReservation]);
 
   // 이벤트 핸들러
   const handleEditRoom = (room) => {
@@ -85,8 +91,16 @@ const RoomsPage = () => {
   };
 
   // 로딩 및 에러 상태 처리
-  if (isLoading) return <LoadingMessage>로딩 중...</LoadingMessage>;
-  if (error) return <LoadingMessage>에러: {error}</LoadingMessage>;
+  if (!isInitialized || loading) {
+    return (
+      <RootLayout>
+        <LoadingWrapper>
+          <LoadingSpinner />
+          <LoadingText>객실 정보를 불러오는 중입니다...</LoadingText>
+        </LoadingWrapper>
+      </RootLayout>
+    );
+  }
 
   // 렌더링
   return (
@@ -345,10 +359,32 @@ const RoomGrid = styled.div`
   gap: 20px;
 `;
 
-const LoadingMessage = styled.div`
-  text-align: center;
-  font-size: 18px;
-  margin-top: 20px;
+const LoadingWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+`;
+
+const LoadingSpinner = styled.div`
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid ${theme.colors.primary};
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+const LoadingText = styled.p`
+  font-size: 16px;
+  color: ${theme.colors.primary};
 `;
 
 // 5. 익스포트

@@ -58,13 +58,20 @@ const RoomEdit = () => {
   }, [fetchRooms]);
 
   useEffect(() => {
-    if (isDataLoaded && rooms.length > 0 && roomNumber) {
-      const roomData = rooms.find(r => r.room_number?.toString() === roomNumber?.toString());
+    if (isDataLoaded && rooms.length > 0 && roomId) {
+      const roomData = rooms.find(r => r.room_id.toString() === roomId.toString());
+      
+      console.log('Found room:', roomData); // 디버깅
       
       if (roomData) {
         setRoom({
           ...room,
-          ...roomData,
+          room_id: roomData.room_id,
+          room_number: roomData.room_number,
+          room_floor: roomData.room_floor || '',
+          room_building: roomData.room_building || '',
+          room_name: roomData.room_name || '',
+          room_type: roomData.room_type || '',
           display: {
             floor: Boolean(roomData.show_floor),
             building: Boolean(roomData.show_building),
@@ -83,11 +90,12 @@ const RoomEdit = () => {
             rate_nightly_weekday: roomData.rate_nightly_weekday || 0,
             rate_nightly_friday: roomData.rate_nightly_friday || 0,
             rate_nightly_weekend: roomData.rate_nightly_weekend || 0
-          }
+          },
+          memo: roomData.memo || ''
         });
       }
     }
-  }, [isDataLoaded, rooms, roomNumber]);
+  }, [isDataLoaded, rooms, roomId]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -138,8 +146,10 @@ const RoomEdit = () => {
 
   const handleSave = async () => {
     try {
-      if (!room.room_id) {
-        throw new Error('객실 ID가 누락되었습니다.');
+      console.log('Saving room with ID:', room.room_id); // 디버깅
+
+      if (!room.room_id || room.room_id.toString() !== roomId.toString()) {
+        throw new Error('객실 ID가 일치하지 않습니다.');
       }
 
       const updateData = {
@@ -158,15 +168,13 @@ const RoomEdit = () => {
         memo: room.memo || ''
       };
 
-      const response = await updateRoom(room.room_id, updateData);
-      
-      if (response) {
-        alert('저장되었습니다.');
-        router.push('/mypage?section=room-settings');
-      }
+      console.log('Update data:', updateData); // 디버깅
+      await updateRoom(room.room_id, updateData);
+      alert('객실 정보가 성공적으로 수정되었습니다.');
+      router.back();
     } catch (error) {
-      console.error('저장 실패:', error);
-      alert(error.message || '저장에 실패했습니다.');
+      console.error('객실 수정 실패:', error);
+      alert(error.message || '객실 수정에 실패했습니다.');
     }
   };
 
@@ -211,7 +219,7 @@ const RoomEdit = () => {
   return (
     <Container>
       <Header>
-        <BackButton onClick={() => router.push('/mypage?section=rooms')}>
+        <BackButton onClick={() => router.push('/mypage?section=room-settings')}>
           <FaArrowLeft size={20} />
         </BackButton>
         <Title>{roomNumber}호 수정</Title>

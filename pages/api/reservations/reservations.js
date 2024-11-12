@@ -254,7 +254,7 @@ async function handleUpdateReservation(req, res) {
  */
 async function handleDeleteReservation(req, res) {
   try {
-    const { reservation_id } = req.query;
+    const { reservation_id } = req.body;
 
     if (!reservation_id) {
       return res.status(400).json({ error: 'reservation_id가 필요합니다.' });

@@ -35,21 +35,14 @@ const RoomSettings = () => {
   );
 
   const handleEdit = (room) => {
-    console.log('Editing room (before):', room);
+    console.log('Editing room:', room);
 
-    if (!room || typeof room.room_id !== 'number' || isNaN(room.room_id)) {
-      console.error('Invalid room_id:', room);
+    if (!room || !room.room_id) {
+      console.error('Invalid room:', room);
       alert('유효하지 않은 객실 정보입니다.');
       return;
     }
 
-    if (!room.room_number) {
-      console.error('Missing room_number:', room);
-      alert('객실 번호가 없습니다.');
-      return;
-    }
-
-    console.log('Editing room (after validation):', room);
     router.push(`/mypage?section=room-edit&roomNumber=${room.room_number}&roomId=${room.room_id}`);
   };
 
@@ -80,7 +73,7 @@ const RoomSettings = () => {
 
       await updateRoomStore(room_id, updatedData);
       await fetchRooms();
-      alert('객실 정보가 성공적으로 업데이트되었습니다.');
+      alert('객실 정보를 성공적으로 업데이트되었습니다.');
     } catch (error) {
       console.error('객실 수정 실패:', error);
       alert(error.message || '객실 수정에 실패했습니다.');

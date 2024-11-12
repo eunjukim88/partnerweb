@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import useRoomStore from '../../store/roomStore';
-import useReservationStore from '../../store/reservationStore';
+import useReservationListStore from '../../store/reservationListStore';
+import { reservationUtils } from '../../utils/reservationUtils';
 
 const RESERVATION_COLORS = {
   '대실': '#748ffc',  // 부드러운 파란색
@@ -11,72 +12,104 @@ const RESERVATION_COLORS = {
   '장기': '#FF763B' 
 };
 
-// 날짜 포맷팅 함수 수정
+// reservationUtils의 dateUtils 사용
 const formatDate = (date) => {
   if (!date) return '';
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: '2-digit', // 두 자리 월
-    day: '2-digit'    // 두 자리 일
-  }).format(date);
+  return reservationUtils.dateUtils.formatDate(date);
 };
 
-// 툴팁 포맷팅 함수 추가
+// 툴팁 포맷팅 함수 수정
 const formatTooltip = (reservation) => {
   if (!reservation) return '';
-  const checkIn = new Date(reservation.check_in_date);
-  const checkOut = new Date(reservation.check_out_date);
-  return `예약자: ${reservation.guest_name}\n체크인: ${formatDate(checkIn)}\n체크아웃: ${formatDate(checkOut)}\n숙박유형: ${reservation.stay_type}`;
+  return `예약번호: ${reservation.reservation_number}
+예약자: ${reservation.guest_name}
+연락처: ${reservation.phone}`;
+};
+
+// 날짜와 요일 포맷팅 함수 추가
+const formatDateWithDay = (date) => {
+  if (!date) return '';
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const dayName = days[date.getDay()];
+  return (
+    <DateContainer>
+      <span>{formatDate(date)}</span>
+      <DayLabel>{dayName}</DayLabel>
+    </DateContainer>
+  );
 };
 
 const TimelineView = () => {
-  const { reservations, isLoading: reservationsLoading, error: reservationsError, fetchReservations, handleSearch } = useReservationStore();
-  const { rooms, isLoading: roomsLoading, error: roomsError, fetchRooms } = useRoomStore();
+  // reservationListStore 사용
+  const {
+    filteredReservations: reservations,
+    fetchReservations,
+    isLoading: reservationsLoading,
+    error: reservationsError,
+    startDate,
+    endDate,
+    setStartDate,
+    setEndDate
+  } = useReservationListStore();
+
+  const rooms = useRoomStore(state => state.rooms);
+  const fetchRooms = useRoomStore(state => state.fetchRooms);
+  const roomsLoading = useRoomStore(state => state.isLoading);
+  const roomsError = useRoomStore(state => state.error);
+
+  // 현재 주의 시작일 상태
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date();
     const day = today.getDay();
     const diff = day === 0 ? -6 : 1 - day;
     const start = new Date(today);
     start.setDate(today.getDate() + diff);
-    start.setHours(0, 0, 0, 0);
-    return start;
+    return reservationUtils.dateUtils.startOfDay(start);
   });
+
+  // 초기 데이터 로딩
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        // 시작일과 종료일 설정
+        setStartDate(currentWeekStart);
+        setEndDate(currentWeekEnd);
+        
+        await Promise.all([
+          fetchReservations(),
+          fetchRooms()
+        ]);
+      } catch (error) {
+        console.error('데이터 로딩 실패:', error);
+      }
+    };
+
+    loadInitialData();
+  }, [currentWeekStart]); // currentWeekStart가 변경될 때마다 데이터 다시 로드
+
+  // 주간 이동 핸들러
+  const handlePrevWeek = useCallback(() => {
+    setCurrentWeekStart(prev => {
+      const newDate = new Date(prev);
+      newDate.setDate(prev.getDate() - 7);
+      return reservationUtils.dateUtils.startOfDay(newDate);
+    });
+  }, []);
+
+  const handleNextWeek = useCallback(() => {
+    setCurrentWeekStart(prev => {
+      const newDate = new Date(prev);
+      newDate.setDate(prev.getDate() + 7);
+      return reservationUtils.dateUtils.startOfDay(newDate);
+    });
+  }, []);
 
   // 현재 주의 종료일 계산
   const currentWeekEnd = useMemo(() => {
     const endDate = new Date(currentWeekStart);
     endDate.setDate(currentWeekStart.getDate() + 6);
-    endDate.setHours(23, 59, 59, 999);
-    return endDate;
+    return reservationUtils.dateUtils.endOfDay(endDate);
   }, [currentWeekStart]);
-
-  // 초기 데이터 로딩
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        await Promise.all([fetchReservations(), fetchRooms()]);
-      } catch (error) {
-        console.error('데이터 로딩 실패:', error);
-      }
-    };
-    loadData();
-  }, [fetchReservations, fetchRooms]);
-
-  // 주간 이동 핸들러
-  const handlePrevWeek = useCallback(() => {
-    setCurrentWeekStart(prevDate => {
-      const newDate = new Date(prevDate);
-      newDate.setDate(newDate.getDate() - 7);
-      return newDate;
-    });
-  }, []);
-
-  const handleNextWeek = useCallback(() => {
-    setCurrentWeekStart(prevDate => {
-      const newDate = new Date(prevDate);
-      newDate.setDate(newDate.getDate() + 7);
-      return newDate;
-    });
-  }, []);
 
   // 날짜 배열 생성
   const weekDates = useMemo(() => {
@@ -91,64 +124,47 @@ const TimelineView = () => {
     return dates;
   }, [currentWeekStart]);
 
-  // 예약 데이터 필터링 부분 수정
+  // 예약 데이터 필터링
   const timelineReservations = useMemo(() => {
-    if (!Array.isArray(reservations)) return [];
+    if (!reservations || !Array.isArray(reservations)) return [];
 
     return reservations.filter(reservation => {
-      try {
-        // 날짜 문자열을 그대로 Date 객체로 변환
-        const checkIn = new Date(reservation.check_in_date);
-        const checkOut = new Date(reservation.check_out_date);
-        
-        // 날짜 범위 체크
-        return checkIn <= currentWeekEnd && checkOut >= currentWeekStart;
-      } catch (error) {
-        console.error('날짜 처리 오류:', error, reservation);
-        return false;
-      }
+      if (!reservation?.check_in_date || !reservation?.check_out_date) return false;
+
+      const checkIn = new Date(reservation.check_in_date);
+      const checkOut = new Date(reservation.check_out_date);
+      
+      return checkIn <= currentWeekEnd && checkOut >= currentWeekStart;
     });
   }, [reservations, currentWeekStart, currentWeekEnd]);
 
-  // 중복 제거된 객실 목록 생성
-  const uniqueRooms = useMemo(() => {
-    if (!Array.isArray(rooms)) return [];
+  // 객실 정렬
+  const sortedRooms = useMemo(() => {
+    if (!rooms || !Array.isArray(rooms)) return [];
     
-    // room_number를 기준으로 중복 제거하고 정렬
-    return Array.from(
-      new Map(
-        rooms
-          .sort((a, b) => a.room_number.localeCompare(b.room_number, undefined, { numeric: true }))
-          .map(room => [room.room_number, room])
-      ).values()
-    );
+    return [...rooms].sort((a, b) => {
+      const aNum = parseInt(a.room_number);
+      const bNum = parseInt(b.room_number);
+      return aNum - bNum;
+    });
   }, [rooms]);
 
-  // 객실별 예약 데이터 매핑
-  const reservationsByRoom = useMemo(() => {
-    if (!Array.isArray(rooms) || !Array.isArray(reservations)) return {};
-    
-    return rooms.reduce((acc, room) => {
-      acc[room.room_id] = reservations.filter(res => 
-        res.room_id === room.room_id
-      );
-      return acc;
-    }, {});
-  }, [rooms, reservations]);
+  // ReservationCell 컴포넌트
+  const ReservationCell = useCallback(({ room, date }) => {
+    if (!timelineReservations) return <Cell />;
 
-  // 예약 표시 컴포넌트 수정
-  const ReservationCell = ({ room, date }) => {
-    const dayReservations = useMemo(() => {
-      return timelineReservations.filter(res => {
-        const checkIn = new Date(res.check_in_date);
-        const checkOut = new Date(res.check_out_date);
-        const currentDate = new Date(date);
-        
-        return res.room_id === room.room_id && 
-               checkIn <= currentDate && 
-               checkOut >= currentDate;
-      });
-    }, [room.room_id, date, timelineReservations]);
+    const dayReservations = timelineReservations.filter(res => {
+      if (!res?.room_id || !res?.check_in_date || !res?.check_out_date) return false;
+
+      const checkIn = new Date(res.check_in_date);
+      const checkOut = new Date(res.check_out_date);
+      const currentDate = new Date(date);
+      currentDate.setHours(0, 0, 0, 0);
+
+      return res.room_id === room.room_id && 
+             checkIn <= currentDate && 
+             checkOut >= currentDate;
+    });
 
     return (
       <Cell>
@@ -167,12 +183,10 @@ const TimelineView = () => {
           let label = '';
 
           if (isShortStay) {
-            // 대실인 경우
             position = '0%';
             width = '50%';
             label = `대실`;
           } else {
-            // 숙박 또는 장기인 경우
             if (isCheckInDay) {
               position = '50%';
               width = '50%';
@@ -205,7 +219,20 @@ const TimelineView = () => {
         })}
       </Cell>
     );
-  };
+  }, [timelineReservations]);
+
+  if (reservationsLoading || roomsLoading) {
+    return <LoadingSpinner>데이터를 불러오는 중...</LoadingSpinner>;
+  }
+
+  if (reservationsError || roomsError) {
+    return (
+      <ErrorMessage>
+        {reservationsError || roomsError}
+        <button onClick={() => window.location.reload()}>새로고침</button>
+      </ErrorMessage>
+    );
+  }
 
   return (
     <TimelineContainer>
@@ -216,36 +243,31 @@ const TimelineView = () => {
         </WeekDisplay>
         <NavigateButton onClick={handleNextWeek}>다음 주</NavigateButton>
       </WeekNavigator>
-      {reservationsLoading || roomsLoading ? (
-        <LoadingSpinner>데이터를 불러오는 중...</LoadingSpinner>
-      ) : reservationsError || roomsError ? (
-        <ErrorMessage>{reservationsError || roomsError}</ErrorMessage>
-      ) : (
-        <>
-          <TimelineHeader>
-            <HeaderCell>객실</HeaderCell>
-            {weekDates.map(date => (
-              <HeaderCell key={date.toISOString()}>
-                {formatDate(date)}
-              </HeaderCell>
-            ))}
-          </TimelineHeader>
-          <TimelineBody>
-            {uniqueRooms.map(room => (
-              <TimelineRow key={room.room_id}>
-                <RoomCell>{room.room_number}</RoomCell>
-                {weekDates.map(date => (
-                  <ReservationCell 
-                    key={`${room.room_id}-${date.toISOString()}`}
-                    room={room}
-                    date={date}
-                  />
-                ))}
-              </TimelineRow>
-            ))}
-          </TimelineBody>
-        </>
-      )}
+      
+      <>
+        <TimelineHeader>
+          <HeaderCell>객실</HeaderCell>
+          {weekDates.map(date => (
+            <HeaderCell key={date.toISOString()}>
+              {formatDateWithDay(date)}
+            </HeaderCell>
+          ))}
+        </TimelineHeader>
+        <TimelineBody>
+          {sortedRooms.map(room => (
+            <TimelineRow key={room.room_id}>
+              <RoomCell>{room.room_number}호</RoomCell>
+              {weekDates.map(date => (
+                <ReservationCell 
+                  key={`${room.room_id}-${date.toISOString()}`}
+                  room={room}
+                  date={date}
+                />
+              ))}
+            </TimelineRow>
+          ))}
+        </TimelineBody>
+      </>
     </TimelineContainer>
   );
 };
@@ -282,6 +304,7 @@ const HeaderCell = styled.div`
   border-right: 1px solid #e9ecef;
   background: #f1f3f5;
   font-size: 0.95rem;
+  padding: 8px;
   
   &:first-child {
     background: #e9ecef;
@@ -379,6 +402,7 @@ const Cell = styled.div`
   flex-direction: column;
   gap: 4px;
   overflow: hidden;
+  border-right: 1px solid #e9ecef;
 
   &:last-child {
     border-right: none;
@@ -401,6 +425,7 @@ const ReservationTag = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
   
   &:hover {
     opacity: 0.95;
@@ -414,17 +439,47 @@ const LoadingSpinner = styled.div`
   justify-content: center;
   align-items: center;
   height: 200px;
-  color: ${props => props.theme.colors.primary};
+  color: #4263eb;
   font-weight: 500;
 `;
 
 const ErrorMessage = styled.div`
-  color: ${props => props.theme.colors.danger};
-  background-color: #fff3f3;
+  color: #e03131;
+  background-color: #fff5f5;
   padding: 20px;
-  border-radius: 4px;
-  margin: 20px 0;
+  border-radius: 8px;
+  margin: 20px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+
+  button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    background-color: #e03131;
+    color: white;
+    cursor: pointer;
+    
+    &:hover {
+      background-color: #c92a2a;
+    }
+  }
+`;
+
+const DateContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+`;
+
+const DayLabel = styled.span`
+  font-size: 0.8rem;
+  color: #868e96;
+  font-weight: 500;
 `;
 
 export default TimelineView;
